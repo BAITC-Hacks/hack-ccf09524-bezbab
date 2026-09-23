@@ -117,6 +117,11 @@ def exact(text):
 
 
 def main():
+    # На Windows вывод в файл или пайп по умолчанию идёт в cp1251, где нет символов вроде «≤».
+    # Для файлов и пайпов пишем UTF-8, в консоли непредставимые символы заменяются, а не роняют проверку.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace") if stream.isatty() else stream.reconfigure(encoding="utf-8")
     quick = "--quick" in sys.argv
     started = time.time()
     print(f"Z3 {z3.get_version_string()}\n")
