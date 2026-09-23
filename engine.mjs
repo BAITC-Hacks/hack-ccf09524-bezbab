@@ -1,190 +1,255 @@
-import { ACTIONS, BUDGET, CATEGORIES, DISTRICTS } from "./data.mjs";
+import { BUDGET, CONFLICTS, DECISIONS_REQUIRED, DIRECTIONS, DISTRICTS, EVENTS, HORIZON, INDICATORS, MAX_PER_DIRECTION, MEASURES, SCORE_RULES, SYNERGIES } from "./data.mjs";
 
-const clamp = (value) => Math.max(0, Math.min(100, value));
-const round = (value) => Math.round(value * 10) / 10;
-const categoryIds = CATEGORIES.map((category) => category.id);
-const SPILLOVERS = { transport: ["service", 0.12], green: ["safety", 0.08], social: ["safety", 0.1], safety: ["transport", 0.07], service: ["social", 0.08] };
+// Внутреннее представление: плоский массив 5 районов × 10 показателей, ячейка = район * 10 + показатель.
+export const K = INDICATORS.length;
+export const N_DISTRICTS = DISTRICTS.length;
+export const WEIGHTS = Float64Array.from(INDICATORS, (indicator) => indicator.weight);
+export const SHARES = Float64Array.from(DISTRICTS, (district) => district.share);
+export const BASE_CELLS = Float64Array.from(DISTRICTS.flatMap((district) => INDICATORS.map((indicator) => district.metrics[indicator.id])));
+const indicatorIndex = Object.fromEntries(INDICATORS.map((indicator, index) => [indicator.id, index]));
+const districtIndex = Object.fromEntries(DISTRICTS.map((district, index) => [district.id, index]));
+export const measureIndex = Object.fromEntries(MEASURES.map((measure, index) => [measure.id, index]));
 
-// Более отстающий район получает больший эффект, но показатель ограничен 100.
-function directGain(action, baseline, current) {
-  const needMultiplier = 0.75 + (100 - baseline) / 200;
-  return round(Math.min(100 - current, action.gain * needMultiplier));
+export const realizedShare = (measure) => (HORIZON - measure.lag) / HORIZON;
+export const getMeasure = (id) => MEASURES.find((measure) => measure.id === id);
+export const getDistrict = (id) => DISTRICTS.find((district) => district.id === id);
+export const getIndicator = (id) => INDICATORS.find((indicator) => indicator.id === id);
+export const getDirection = (id) => DIRECTIONS.find((direction) => direction.id === id);
+const round2 = (value) => Math.round(value * 100) / 100;
+
+// Эффект меры с учётом лага: список [ячейка, прирост] для района (или всех районов, если мера городская).
+export function effectCells(measure, dIndex, share = realizedShare(measure), multiplier = 1) {
+  const targets = measure.scope === "city" ? DISTRICTS.map((_, index) => index) : [dIndex];
+  return targets.flatMap((target) => Object.entries(measure.effects).map(([indicatorId, value]) => [target * K + indicatorIndex[indicatorId], value * share * multiplier]));
 }
 
-// Ожидаемый прямой эффект мероприятия в районе без учёта других решений — подсказка для выбора.
-export function previewGain(categoryId, actionId, districtId) {
-  const action = getAction(categoryId, actionId);
-  const district = getDistrict(districtId);
-  if (!action || !district) return null;
-  return directGain(action, district.metrics[categoryId], district.metrics[categoryId]);
+// Синергии: бонус в районе первой районной меры пары; если обе городские — во всех районах.
+export function activeSynergies(decisions) {
+  const byMeasure = new Map(decisions.map((decision) => [decision.measureId, decision]));
+  return SYNERGIES.filter((synergy) => synergy.measures.every((id) => byMeasure.has(id))).map((synergy) => {
+    const anchor = synergy.measures.map((id) => byMeasure.get(id)).find((decision) => decision.districtId);
+    return { ...synergy, districtId: anchor?.districtId ?? null };
+  });
 }
 
-// Компактная запись сценария для ссылки: "bus.almaty~park.esil~..." в порядке направлений.
-export function encodeSelections(selections) {
-  return categoryIds.map((id) => `${selections[id]?.actionId ?? ""}.${selections[id]?.districtId ?? ""}`).join("~");
-}
-
-export function decodeSelections(text) {
-  const parts = String(text ?? "").split("~");
-  if (parts.length !== categoryIds.length) return null;
-  const selections = {};
-  for (const [index, id] of categoryIds.entries()) {
-    const [actionId, districtId] = parts[index].split(".");
-    if (!getAction(id, actionId) || !getDistrict(districtId)) return null;
-    selections[id] = { actionId, districtId };
-  }
-  return validateSelections(selections).length ? null : selections;
-}
-
-export function getAction(categoryId, actionId) {
-  return ACTIONS[categoryId]?.find((action) => action.id === actionId);
-}
-
-export function getDistrict(districtId) {
-  return DISTRICTS.find((district) => district.id === districtId);
-}
-
-export function costOf(selections) {
-  return categoryIds.reduce((sum, id) => sum + (getAction(id, selections[id]?.actionId)?.cost ?? 0), 0);
-}
-
-export function validateSelections(selections) {
-  const errors = [];
-  for (const id of categoryIds) {
-    const choice = selections[id];
-    if (!choice || !getAction(id, choice.actionId) || !getDistrict(choice.districtId)) {
-      errors.push(`Выберите мероприятие и район: ${CATEGORIES.find((item) => item.id === id).label}.`);
+export function scoreCells(cells) {
+  let average = 0;
+  let weakest = Infinity;
+  let weakestIndex = 0;
+  let critical = 0;
+  const districtScores = new Float64Array(N_DISTRICTS);
+  for (let d = 0; d < N_DISTRICTS; d += 1) {
+    let score = 0;
+    for (let k = 0; k < K; k += 1) {
+      const value = Math.max(0, Math.min(100, cells[d * K + k]));
+      score += WEIGHTS[k] * value;
+      if (value < SCORE_RULES.criticalThreshold) critical += 1;
     }
+    districtScores[d] = score;
+    average += SHARES[d] * score;
+    if (score < weakest) { weakest = score; weakestIndex = d; }
   }
-  if (costOf(selections) > BUDGET) errors.push(`Бюджет превышен на ${costOf(selections) - BUDGET} ед.`);
+  const score = SCORE_RULES.averageWeight * average + SCORE_RULES.weakestWeight * weakest - SCORE_RULES.criticalPenalty * critical;
+  return { score, average, weakest, weakestIndex, critical, districtScores };
+}
+
+// Применяет любой (в том числе неполный) набор решений. Валидность проверяет validate().
+export function applyDecisions(decisions, { multipliers = [], lagDelays = [] } = {}) {
+  const cells = Float64Array.from(BASE_CELLS);
+  decisions.forEach((decision, index) => {
+    const measure = getMeasure(decision.measureId);
+    const lag = Math.min(HORIZON, measure.lag + (lagDelays[index] ?? 0));
+    for (const [cell, value] of effectCells(measure, districtIndex[decision.districtId], (HORIZON - lag) / HORIZON, multipliers[index] ?? 1)) cells[cell] += value;
+  });
+  for (const synergy of activeSynergies(decisions)) {
+    const targets = synergy.districtId ? [districtIndex[synergy.districtId]] : DISTRICTS.map((_, index) => index);
+    for (const target of targets) cells[target * K + indicatorIndex[synergy.indicator]] += synergy.bonus;
+  }
+  return cells;
+}
+
+export const costOf = (decisions) => decisions.reduce((sum, decision) => sum + (getMeasure(decision?.measureId)?.cost ?? 0), 0);
+
+export function validate(decisions) {
+  const errors = [];
+  const list = Array.isArray(decisions) ? decisions.filter(Boolean) : [];
+  if (list.length !== DECISIONS_REQUIRED) errors.push(`Нужно ровно ${DECISIONS_REQUIRED} решений, сейчас ${list.length}.`);
+  const seen = new Set();
+  for (const decision of list) {
+    const measure = getMeasure(decision.measureId);
+    if (!measure) { errors.push(`Неизвестное мероприятие: ${decision.measureId}.`); continue; }
+    if (seen.has(measure.id)) errors.push(`${measure.id} «${measure.name}» выбрано повторно — каждое мероприятие можно взять только один раз.`);
+    seen.add(measure.id);
+    if (measure.scope === "district" && !getDistrict(decision.districtId)) errors.push(`Для ${measure.id} «${measure.name}» нужно выбрать район.`);
+    if (measure.scope === "city" && decision.districtId) errors.push(`${measure.id} «${measure.name}» — городская мера, район для неё не указывается.`);
+  }
+  for (const direction of DIRECTIONS) {
+    const count = list.filter((decision) => getMeasure(decision.measureId)?.direction === direction.id).length;
+    if (count > MAX_PER_DIRECTION) errors.push(`Направление «${direction.label}»: выбрано ${count} меры, допускается не более ${MAX_PER_DIRECTION}.`);
+  }
+  for (const conflict of CONFLICTS) {
+    const [a, b] = conflict.measures.map((id) => list.find((decision) => decision.measureId === id));
+    if (!a || !b) continue;
+    if (!conflict.sameDistrict) errors.push(`${a.measureId} и ${b.measureId} несовместимы: ${conflict.reason}.`);
+    else if (a.districtId && a.districtId === b.districtId && getDistrict(a.districtId)) errors.push(`${a.measureId} и ${b.measureId} нельзя в одном районе (${getDistrict(a.districtId).name}): ${conflict.reason}.`);
+  }
+  const cost = costOf(list);
+  if (cost > BUDGET) errors.push(`Бюджет превышен на ${cost - BUDGET} ед. (${cost} из ${BUDGET}).`);
   return errors;
 }
 
-function weightedScore(districts) {
-  const population = districts.reduce((sum, district) => sum + district.population, 0);
-  return districts.reduce((sum, district) => {
-    const mean = categoryIds.reduce((total, id) => total + district.metrics[id], 0) / categoryIds.length;
-    return sum + mean * district.population / population;
-  }, 0);
+export const scoreOf = (decisions) => scoreCells(applyDecisions(decisions)).score;
+export const BASELINE = scoreCells(BASE_CELLS);
+
+// Вклад по Шепли: средний прирост Score от меры по всем порядкам добавления.
+// Сумма вкладов в точности равна изменению Score, включая синергии и штрафы.
+export function shapley(decisions) {
+  const n = decisions.length;
+  const value = new Float64Array(1 << n);
+  for (let mask = 0; mask < 1 << n; mask += 1) value[mask] = scoreOf(decisions.filter((_, index) => mask & (1 << index)));
+  const factorial = [1, 1, 2, 6, 24, 120, 720];
+  const bits = (mask) => mask.toString(2).replace(/0/g, "").length;
+  return decisions.map((_, index) => {
+    let total = 0;
+    for (let mask = 0; mask < 1 << n; mask += 1) {
+      if (mask & (1 << index)) continue;
+      const size = bits(mask);
+      total += (factorial[size] * factorial[n - size - 1] / factorial[n]) * (value[mask | (1 << index)] - value[mask]);
+    }
+    return total;
+  });
 }
 
-function equityGap(districts) {
-  const means = districts.map((district) => categoryIds.reduce((sum, id) => sum + district.metrics[id], 0) / categoryIds.length);
-  return Math.max(...means) - Math.min(...means);
+function criticalList(cells) {
+  const list = [];
+  DISTRICTS.forEach((district, d) => INDICATORS.forEach((indicator, k) => {
+    const value = Math.max(0, Math.min(100, cells[d * K + k]));
+    if (value < SCORE_RULES.criticalThreshold) list.push({ districtId: district.id, indicator: indicator.id, value: round2(value) });
+  }));
+  return list;
 }
 
-export function evaluate(selections) {
-  const errors = validateSelections(selections);
-  if (errors.length) return { valid: false, errors, cost: costOf(selections) };
-  return simulate(selections);
+function districtView(cells, scores) {
+  return DISTRICTS.map((district, d) => ({
+    id: district.id,
+    name: district.name,
+    share: district.share,
+    score: round2(scores[d]),
+    metrics: Object.fromEntries(INDICATORS.map((indicator, k) => [indicator.id, round2(Math.max(0, Math.min(100, cells[d * K + k])))])),
+  }));
 }
 
-// Расчёт без проверки: вызывается только для заведомо корректных сценариев.
-function simulate(selections) {
-  const districts = DISTRICTS.map((district) => ({ ...district, metrics: { ...district.metrics } }));
-  const impacts = [];
-
-  for (const id of categoryIds) {
-    const choice = selections[id];
-    const district = districts.find((item) => item.id === choice.districtId);
-    const action = getAction(id, choice.actionId);
-    const baseline = DISTRICTS.find((item) => item.id === district.id).metrics[id];
-    const direct = directGain(action, baseline, district.metrics[id]);
-    district.metrics[id] = round(clamp(district.metrics[id] + direct));
-    const [otherId, ratio] = SPILLOVERS[id];
-    const indirect = round(Math.min(100 - district.metrics[otherId], direct * ratio));
-    district.metrics[otherId] = round(clamp(district.metrics[otherId] + indirect));
-    impacts.push({ categoryId: id, districtId: district.id, actionId: action.id, direct, indirect, otherId, cost: action.cost });
-  }
-
-  const baseline = weightedScore(DISTRICTS);
-  const rawScore = weightedScore(districts);
-  const baselineGap = equityGap(DISTRICTS);
-  const gap = equityGap(districts);
-  // Небольшой штраф, если разрыв между районами вырос. Это делает компромисс видимым.
-  const equityPenalty = round(Math.max(0, gap - baselineGap) * 0.18);
-  const score = round(clamp(rawScore - equityPenalty));
+export function evaluate(decisions) {
+  const list = (decisions ?? []).filter(Boolean);
+  const errors = validate(list);
+  if (errors.length) return { valid: false, errors, cost: costOf(list) };
+  const cells = applyDecisions(list);
+  const result = scoreCells(cells);
+  const contributions = shapley(list);
+  const cost = costOf(list);
   return {
     valid: true,
     budget: BUDGET,
-    cost: costOf(selections),
-    remaining: BUDGET - costOf(selections),
-    baseline: round(baseline),
-    score,
-    delta: round(score - baseline),
-    equityPenalty,
-    baselineGap: round(baselineGap),
-    gap: round(gap),
-    districts,
-    impacts,
+    cost,
+    remaining: BUDGET - cost,
+    score: round2(result.score),
+    exactScore: result.score,
+    baseline: round2(BASELINE.score),
+    delta: round2(result.score - BASELINE.score),
+    components: {
+      average: round2(result.average),
+      weakest: round2(result.weakest),
+      weakestDistrictId: DISTRICTS[result.weakestIndex].id,
+      critical: result.critical,
+      baselineAverage: round2(BASELINE.average),
+      baselineWeakest: round2(BASELINE.weakest),
+      baselineWeakestDistrictId: DISTRICTS[BASELINE.weakestIndex].id,
+      baselineCritical: BASELINE.critical,
+    },
+    critical: criticalList(cells),
+    baselineCritical: criticalList(BASE_CELLS),
+    before: districtView(BASE_CELLS, BASELINE.districtScores),
+    after: districtView(cells, result.districtScores),
+    synergies: activeSynergies(list),
+    decisions: list.map((decision, index) => {
+      const measure = getMeasure(decision.measureId);
+      return {
+        measureId: measure.id,
+        districtId: decision.districtId ?? null,
+        cost: measure.cost,
+        realized: realizedShare(measure),
+        contribution: round2(contributions[index]),
+        exactContribution: contributions[index],
+      };
+    }),
   };
 }
 
-export function analyze(result) {
-  if (!result.valid) return null;
-  const strongest = [...result.impacts].sort((a, b) => b.direct - a.direct)[0];
-  const strongestCategory = CATEGORIES.find((category) => category.id === strongest.categoryId);
-  const strongestDistrict = getDistrict(strongest.districtId);
-  const weakest = result.districts.flatMap((district) => categoryIds.map((id) => ({ district: district.name, category: CATEGORIES.find((item) => item.id === id).label, value: district.metrics[id] })))
-    .sort((a, b) => a.value - b.value)[0];
-  const districtMean = (district) => categoryIds.reduce((sum, id) => sum + district.metrics[id], 0) / categoryIds.length;
-  const growth = result.districts.map((district) => ({ name: district.name, gain: round(districtMean(district) - districtMean(getDistrict(district.id))) }))
-    .sort((a, b) => b.gain - a.gain);
-  const untouched = DISTRICTS.filter((district) => !result.impacts.some((impact) => impact.districtId === district.id));
-  const strengths = [`Максимальный локальный эффект: ${strongestCategory.label.toLowerCase()} в районе ${strongestDistrict.name} (+${strongest.direct} п.).`, `Итоговый индекс вырос на ${result.delta} п. при расходе ${result.cost} из ${BUDGET} ед.`];
-  if (growth[0].gain > 0) strengths.push(`Больше всех выигрывает район ${growth[0].name}: средняя оценка +${growth[0].gain} п.`);
-  if (result.gap < result.baselineGap) strengths.push(`Разрыв между районами сократился с ${result.baselineGap} до ${result.gap} п.`);
-  const risks = [`Самое слабое место после изменений — ${weakest.category.toLowerCase()} в районе ${weakest.district} (${round(weakest.value)} из 100).`];
-  for (const district of untouched) risks.push(`Район ${district.name} не получил ни одного решения — жители могут воспринять это как несправедливость.`);
-  if (result.equityPenalty > 0) risks.push(`Разрыв между районами вырос; штраф за неравномерность: ${result.equityPenalty} п.`);
-  if (result.remaining < 10) risks.push("Осталось меньше 10 единиц резерва для непредвиденных расходов.");
-  else risks.push(`Резерв бюджета — ${result.remaining} ед.; его можно сохранить на неожиданные события.`);
-  return { strengths, risks, weakest, growth };
-}
-
-export function findBestScenario() {
-  const options = categoryIds.map((id) => ACTIONS[id].flatMap((action) => DISTRICTS.map((district) => ({ actionId: action.id, districtId: district.id, cost: action.cost }))));
-  let best = null;
-  let bestSelections = null;
-
-  function search(index, cost, selections) {
-    if (index === categoryIds.length) {
-      const result = simulate(selections);
-      if ((!best || result.score > best.score || (result.score === best.score && cost < best.cost))) {
-        best = result;
-        bestSelections = { ...selections };
-      }
-      return;
-    }
-    const id = categoryIds[index];
-    for (const option of options[index]) {
-      if (cost + option.cost > BUDGET) continue;
-      selections[id] = { actionId: option.actionId, districtId: option.districtId };
-      search(index + 1, cost + option.cost, selections);
-    }
+// Устойчивость: эффекты мер неточны (±20%), а каждая мера с вероятностью 25% запаздывает на квартал.
+// Генератор с фиксированным зерном — у всех команд одинаковые «случайности».
+export function robustness(decisions, runs = 400, seed = 2050) {
+  // Порядок выбора и порядок мер в ссылке должны давать один и тот же прогноз.
+  const ordered = [...decisions].sort((a, b) => measureIndex[a.measureId] - measureIndex[b.measureId]);
+  let state = seed >>> 0;
+  const random = () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const scores = [];
+  for (let run = 0; run < runs; run += 1) {
+    const multipliers = ordered.map(() => 0.8 + random() * 0.4);
+    const lagDelays = ordered.map(() => (random() < 0.25 ? 1 : 0));
+    scores.push(scoreCells(applyDecisions(ordered, { multipliers, lagDelays })).score);
   }
-  search(0, 0, {});
-  return { selections: bestSelections, result: best };
+  scores.sort((a, b) => a - b);
+  const at = (q) => round2(scores[Math.min(scores.length - 1, Math.floor(q * scores.length))]);
+  return { p10: at(0.1), p50: at(0.5), p90: at(0.9), worst: round2(scores[0]), runs };
 }
 
-// Совет, который можно выполнить одним изменением уже выбранного сценария.
-export function findBestSingleChange(selections) {
-  const current = evaluate(selections);
-  if (!current.valid) return null;
-  let best = null;
-  for (const categoryId of categoryIds) {
-    for (const action of ACTIONS[categoryId]) {
-      for (const district of DISTRICTS) {
-        if (selections[categoryId].actionId === action.id && selections[categoryId].districtId === district.id) continue;
-        const next = { ...selections, [categoryId]: { actionId: action.id, districtId: district.id } };
-        if (costOf(next) > BUDGET) continue;
-        const result = evaluate(next);
-        if (!result.valid || result.score <= current.score) continue;
-        if (!best || result.score > best.result.score || (result.score === best.result.score && result.cost < best.result.cost)) {
-          best = { categoryId, from: { ...selections[categoryId] }, to: next[categoryId], selections: next, result };
-        }
-      }
-    }
-  }
-  return best;
+// Стресс-тест: событие бьёт по району. Если резерва хватает — ущерб ликвидирован за его счёт.
+// Если в районе (или по городу) уже работает профильная мера — удар вдвое слабее.
+export function stressTest(decisions) {
+  const cells = applyDecisions(decisions);
+  const score = scoreCells(cells).score;
+  const reserve = BUDGET - costOf(decisions);
+  return EVENTS.map((event) => {
+    const mitigation = decisions.find((decision) => event.mitigatedBy.includes(decision.measureId) && (!decision.districtId || decision.districtId === event.districtId));
+    const factor = mitigation ? 0.5 : 1;
+    const shocked = Float64Array.from(cells);
+    const d = districtIndex[event.districtId];
+    for (const [indicatorId, value] of Object.entries(event.shocks)) shocked[d * K + indicatorIndex[indicatorId]] += value * factor;
+    const hitScore = scoreCells(shocked).score;
+    const covered = reserve >= event.responseCost;
+    return {
+      eventId: event.id,
+      covered,
+      mitigatedBy: mitigation?.measureId ?? null,
+      responseCost: event.responseCost,
+      shortfall: Math.max(0, event.responseCost - reserve),
+      scoreAfter: round2(covered ? score : hitScore),
+      loss: round2(covered ? 0 : score - hitScore),
+      lossIfIgnored: round2(score - hitScore),
+    };
+  });
 }
+
+// Компактная запись набора для ссылки: "M5.saryarka_M7.nura_M8.nura_M10.nura_M12" (порядок не важен).
+export function encodeDecisions(decisions) {
+  return [...decisions].filter(Boolean).sort((a, b) => measureIndex[a.measureId] - measureIndex[b.measureId])
+    .map((decision) => (decision.districtId ? `${decision.measureId}.${decision.districtId}` : decision.measureId)).join("_");
+}
+
+export function decodeDecisions(text) {
+  const parts = String(text ?? "").split("_").filter(Boolean);
+  const decisions = parts.map((part) => {
+    const [measureId, districtId] = part.split(".");
+    return { measureId, districtId: districtId ?? null };
+  });
+  return decisions.length && !validate(decisions).length ? decisions : null;
+}
+
+export const sameDecision = (a, b) => a.measureId === b.measureId && (a.districtId ?? null) === (b.districtId ?? null);
+export const changesBetween = (from, to) => to.filter((decision) => !from.some((other) => sameDecision(other, decision))).length;

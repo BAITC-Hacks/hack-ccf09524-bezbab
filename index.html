@@ -4,29 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f6f3ec" />
-    <meta name="description" content="Аким на 5 часов — симулятор городских решений с единым бюджетом и объяснимой оценкой качества жизни." />
+    <meta name="description" content="Аким на 5 часов — AI-симулятор городских решений: единый бюджет, 14 мероприятий, 5 районов, объяснимый Astana Quality of Life Score." />
     <title>Аким на 5 часов — BEZBAB</title>
-    <link rel="stylesheet" href="./styles.css?v=4" />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css?v=8" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="#top" aria-label="На главную"><span class="brand-mark">А</span><span>BEZBAB <em>/ HackAlem AI</em></span></a>
-      <span class="topbar-tag">Городской AI-симулятор</span>
+      <span class="topbar-tag" id="engine-status">Модель загружается…</span>
     </header>
 
     <main id="top">
       <section class="hero container">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="pulse"></span> ИНТЕРАКТИВНЫЙ СЦЕНАРИЙ · АСТАНА</p>
+          <p class="eyebrow"><span class="pulse"></span> AI-СИМУЛЯТОР УПРАВЛЕНИЯ ГОРОДОМ · АСТАНА</p>
           <h1>Аким на <i>5 часов</i></h1>
-          <p class="lead">Пять решений. Один бюджет. Как изменится качество жизни в городе?</p>
-          <p class="hero-note">Распределите ресурсы между районами. Симулятор рассчитает последствия и покажет компромиссы каждого выбора.</p>
+          <p class="lead">Пять решений. 100 единиц бюджета. Пять районов, которые ждут разного.</p>
+          <p class="hero-note">Выберите 5 из 14 мероприятий. Модель пересчитает 10 показателей в каждом районе, AI-аналитик объяснит сильные стороны и риски, а оптимизатор сравнит ваш сценарий со всеми допустимыми.</p>
           <a class="primary-button" href="#decisions">Принять решения <span>↗</span></a>
         </div>
         <div class="hero-visual" aria-hidden="true">
           <div class="visual-grid"></div>
           <div class="visual-orbit orbit-one"></div><div class="visual-orbit orbit-two"></div>
-          <div class="hero-number">05<span>направлений</span></div>
+          <div class="hero-number">05<span>решений</span></div>
           <div class="hero-city">ASTANA<br /><b>2050?</b></div>
           <div class="visual-caption">Будущее города<br />зависит от выбора сегодня.</div>
         </div>
@@ -34,56 +35,124 @@
 
       <section class="context-band">
         <div class="container context-grid">
-          <div><span class="context-number">01</span><strong>Единый бюджет</strong><p>100 условных единиц для всех сценариев</p></div>
-          <div><span class="context-number">03</span><strong>Условных района</strong><p>Разные исходные показатели и потребности</p></div>
-          <div><span class="context-number">05</span><strong>Управленческих решений</strong><p>По одному в каждом направлении развития</p></div>
+          <div><span class="context-number">100</span><strong>Единиц бюджета</strong><p>Одинаково для всех команд; остаток — резерв</p></div>
+          <div><span class="context-number">5×10</span><strong>Районов × показателей</strong><p>Синтетический датасет, шкала 0–100</p></div>
+          <div><span class="context-number">14</span><strong>Мероприятий</strong><p>С лагом запуска, синергиями и конфликтами</p></div>
+          <div><span class="context-number" id="space-count">…</span><strong>Допустимых сценариев</strong><p>Оптимизатор проверяет каждый</p></div>
         </div>
       </section>
 
       <section class="container baseline-section" aria-labelledby="baseline-title">
-        <div class="section-heading"><div><p class="eyebrow">ОТПРАВНАЯ ТОЧКА</p><h2 id="baseline-title">Город до ваших решений</h2></div><p>Все показатели синтетические. Шкала от 0 до 100: выше — лучше.</p></div>
-        <div id="baseline-grid" class="district-grid"></div>
+        <div class="section-heading"><div><p class="eyebrow">ОТПРАВНАЯ ТОЧКА</p><h2 id="baseline-title">Город до ваших решений</h2></div><p>Все показатели синтетические: 0–100, больше — лучше. Красная метка — критическое значение ниже 40 (штраф −1 к Score).</p></div>
+        <div class="formula-card" id="baseline-formula"></div>
+        <div id="baseline-grid" class="district-grid five"></div>
       </section>
 
       <section id="decisions" class="decision-section" aria-labelledby="decision-title">
         <div class="container">
-          <div class="section-heading"><div><p class="eyebrow">ВАШ ХОД</p><h2 id="decision-title">Выберите пять инициатив</h2></div><p>Для каждого направления выберите мероприятие и район. Не выходите за пределы бюджета.</p></div>
+          <div class="section-heading"><div><p class="eyebrow">ВАШ ХОД</p><h2 id="decision-title">Выберите 5 мероприятий</h2></div><p>Не больше двух мер из одного направления. Районным мерам нужен район, городские действуют везде. Цифра на кнопке — изменение Score, если добавить меру сейчас.</p></div>
           <div class="workspace-layout">
-            <div id="decision-cards" class="decision-cards"></div>
+            <div id="catalog" class="catalog"></div>
             <aside class="budget-panel" aria-label="Бюджет и готовность сценария">
               <p class="eyebrow">РЕСУРСЫ ГОРОДА</p>
               <div class="budget-amount"><span id="spent">0</span><small>/ 100 ед.</small></div>
               <div class="budget-track"><div id="budget-fill"></div></div>
               <p id="remaining" class="remaining">Осталось 100 ед.</p>
               <div class="budget-divider"></div>
-              <p class="aside-title">Ваш сценарий</p>
-              <div id="selection-progress" class="selection-progress"></div>
+              <p class="aside-title">Ваши решения <span id="slot-count">0 / 5</span></p>
+              <ol id="slots" class="slots"></ol>
               <div id="live-score" class="live-score" aria-live="polite" hidden></div>
-              <div id="validation-message" class="validation-message" role="status">Выберите по одному решению в каждом направлении.</div>
+              <div id="validation-message" class="validation-message" role="status"></div>
               <button id="calculate-button" class="primary-button full-width" type="button" disabled>Рассчитать сценарий <span>↗</span></button>
-              <button id="reset-button" class="text-button" type="button">Сбросить выбор</button>
+              <div class="panel-links"><button id="example-button" class="text-button" type="button">Пример из ТЗ</button><button id="reset-button" class="text-button" type="button">Сбросить</button></div>
             </aside>
           </div>
         </div>
       </section>
 
       <section id="results" class="container results-section" aria-labelledby="results-title" hidden>
-        <div class="section-heading"><div><p class="eyebrow">РЕЗУЛЬТАТ МОДЕЛИ</p><h2 id="results-title">Что изменилось?</h2></div><p>Оценка основана на выбранных инициативах, потребностях районов и неравномерности результата.</p></div>
+        <div class="section-heading"><div><p class="eyebrow">РЕЗУЛЬТАТ МОДЕЛИ</p><h2 id="results-title">Что изменилось?</h2></div><p>Расчёт детерминирован и проверен формально: одинаковые решения всегда дают одинаковый Score.</p></div>
+
         <div class="result-hero">
-          <div class="score-block"><p>ASTANA QUALITY OF LIFE SCORE</p><div><strong id="final-score">—</strong><span>/ 100</span></div><small id="score-change"></small><p id="score-details" class="score-details"></p></div>
-          <div class="score-comparison"><div><span>До решений</span><strong id="baseline-score"></strong></div><div class="comparison-track"><div id="baseline-fill"></div></div><div><span>После решений</span><strong id="after-score"></strong></div><div class="comparison-track accent"><div id="after-fill"></div></div></div>
-          <div class="result-stamp">ВАШЕ<br />РЕШЕНИЕ<br /><span>ИМЕЕТ ВЕС</span></div>
+          <div class="score-block"><p>ASTANA QUALITY OF LIFE SCORE</p><div><strong id="final-score">—</strong><span>/ 100</span></div><small id="score-change"></small></div>
+          <div class="score-facts">
+            <p id="score-formula" class="score-formula"></p>
+            <div class="fact-row"><span>Место среди всех допустимых</span><strong id="score-rank">считаем…</strong></div>
+            <div class="fact-row"><span>Устойчивость (80% симуляций)</span><strong id="score-robust"></strong></div>
+            <div class="fact-row"><span>Стресс-тест событиями</span><strong id="score-stress"></strong></div>
+          </div>
         </div>
-        <div class="analysis-grid"><article class="analysis-card"><span class="analysis-icon good">↗</span><h3>Сильные стороны</h3><ul id="strengths-list"></ul></article><article class="analysis-card"><span class="analysis-icon caution">!</span><h3>Риски и компромиссы</h3><ul id="risks-list"></ul></article></div>
-        <div class="impact-panel"><div class="subsection-heading"><h3>Вклад каждого решения</h3><p>Прямой и побочный эффект, эффективность затрат</p></div><div id="impact-list" class="impact-list"></div></div>
-        <div class="district-results"><div class="subsection-heading"><h3>Показатели районов</h3><p>Цветная часть полосы — прирост после ваших решений</p></div><div id="district-results-grid" class="district-grid"></div></div>
-        <div class="advisor-panel"><div><p class="eyebrow">АЛГОРИТМИЧЕСКИЙ СОВЕТНИК</p><h3>Что улучшить?</h3><p id="single-advice-copy"></p><p id="advisor-copy">Сравниваем допустимые комбинации решений...</p></div><div class="advisor-actions"><button id="apply-single-advice" class="outline-button" type="button" disabled>Изменить одно решение ↗</button><button id="apply-advice" class="outline-button" type="button" disabled>Показать лучший сценарий ↗</button></div></div>
-        <div class="scenario-panel"><div class="scenario-heading"><div><p class="eyebrow">СРАВНЕНИЕ</p><h3>Сохранённые сценарии</h3><p>Сохраните результат в этом браузере и сравните его с текущим выбором.</p></div><div class="scenario-buttons"><button id="save-scenario" class="outline-button" type="button">Сохранить сценарий +</button><button id="share-scenario" class="outline-button" type="button">Скопировать ссылку ↗</button></div></div><div id="saved-scenarios" class="saved-scenarios"></div><div id="comparison-output" class="comparison-output" role="status"></div></div>
-        <p class="model-note">Метод: объяснимая экспертная модель и полный перебор допустимых сценариев. Без внешнего AI API. <a href="./README.md" target="_blank" rel="noopener">Формулы и ограничения — в README.</a></p>
+
+        <article class="ai-panel">
+          <div class="ai-head"><div><p class="eyebrow">AI-АНАЛИТИК</p><h3>Объяснение сценария</h3></div><span id="ai-badge" class="ai-badge">Правила модели</span></div>
+          <div id="ai-text" class="ai-text"></div>
+          <div class="analysis-grid three">
+            <div class="analysis-card"><span class="analysis-icon good">↗</span><h4>Сильные стороны</h4><ul id="strengths-list"></ul></div>
+            <div class="analysis-card"><span class="analysis-icon caution">!</span><h4>Риски</h4><ul id="risks-list"></ul></div>
+            <div class="analysis-card"><span class="analysis-icon neutral">⌂</span><h4>Последствия для жителей</h4><ul id="consequences-list"></ul></div>
+          </div>
+          <div class="tradeoffs"><h4>Главные компромиссы</h4><ul id="tradeoffs-list"></ul></div>
+        </article>
+
+        <div class="block">
+          <div class="subsection-heading"><h3>Вклад каждого решения в Score</h3><p>Значение Шепли: сумма вкладов в точности равна приросту Score</p></div>
+          <div id="contributions" class="contributions"></div>
+        </div>
+
+        <div class="block chart-grid">
+          <figure class="chart-card"><figcaption><strong>Ваш сценарий среди всех допустимых</strong><span>Распределение Score по <b id="hist-count">…</b> наборам</span></figcaption><div id="histogram" class="chart"></div></figure>
+          <figure class="chart-card"><figcaption><strong>Бюджет → максимально достижимый Score</strong><span>Граница оптимальности (доказана Z3); точка — ваш сценарий</span></figcaption><div id="pareto" class="chart"></div></figure>
+        </div>
+
+        <div class="block">
+          <div class="subsection-heading"><h3>Показатели районов</h3><p>Светлая часть полосы — прирост после решений; красная метка — ниже 40</p></div>
+          <div id="district-results-grid" class="district-grid five"></div>
+        </div>
+
+        <div class="advisor-panel block">
+          <div class="advisor-head"><div><p class="eyebrow">ОПТИМИЗАТОР</p><h3>Как улучшить сценарий</h3></div><p id="advisor-status" class="advisor-status"></p></div>
+          <div id="single-advice" class="single-advice"></div>
+          <div id="alternatives" class="alternatives"></div>
+          <div id="core" class="core"></div>
+        </div>
+
+        <div class="stress-panel block">
+          <div class="subsection-heading"><h3>Стресс-тест: неожиданные городские события</h3><p>Ликвидация оплачивается из резерва. Не хватает — придётся перераспределить бюджет</p></div>
+          <div id="stress-list" class="stress-list"></div>
+          <div id="realloc-output" class="realloc-output" aria-live="polite"></div>
+        </div>
+
+        <div class="scenario-panel block">
+          <div class="scenario-heading"><div><p class="eyebrow">СРАВНЕНИЕ КОМАНД</p><h3>Таблица сценариев</h3><p>Все стартуют с одинакового бюджета и данных. Сохраните свой результат и добавьте сценарии других команд по коду или ссылке.</p></div></div>
+          <div class="team-form">
+            <label>Команда <input id="team-name" type="text" maxlength="40" placeholder="Например, BEZBAB" /></label>
+            <button id="save-scenario" class="outline-button" type="button">Сохранить результат +</button>
+            <button id="share-scenario" class="outline-button" type="button">Скопировать ссылку ↗</button>
+          </div>
+          <div class="team-form">
+            <label>Код или ссылка другой команды <input id="import-code" type="text" placeholder="M2_M3.nura_M8.nura_M9.nura_M14" /></label>
+            <input id="import-name" type="text" maxlength="40" placeholder="Название команды" aria-label="Название импортируемой команды" />
+            <button id="import-button" class="outline-button" type="button">Добавить</button>
+          </div>
+          <div id="leaderboard" class="leaderboard"></div>
+          <div id="comparison-output" class="comparison-output" role="status"></div>
+        </div>
+
+        <div class="present-panel block">
+          <div><p class="eyebrow">ДЛЯ ЗАЩИТЫ</p><h3>Краткая презентация решения</h3><p>Пять слайдов по вашему сценарию: решения, результат, районы, анализ, рекомендации. Печать в PDF — из окна предпросмотра.</p></div>
+          <button id="present-button" class="primary-button" type="button">Сгенерировать презентацию <span>↗</span></button>
+        </div>
+
+        <p class="model-note">Метод: детерминированная модель по формулам ТЗ, точный перебор всех допустимых наборов в Web Worker, значения Шепли, Монте-Карло, стресс-тест. Математика проверена в Z3 и Lean 4 + Mathlib. LLM только объясняет готовые числа. <a href="./README.md" target="_blank" rel="noopener">Формулы и проверки — в README.</a></p>
       </section>
     </main>
 
-    <footer><div class="container footer-inner"><span>BEZBAB · Аким на 5 часов</span><span>Синтетические данные · Демоверсия для HackAlem AI</span></div></footer>
-    <script type="module" src="./main.mjs?v=4"></script>
+    <dialog id="presentation" class="presentation" aria-label="Презентация решения">
+      <div class="presentation-bar"><strong>Презентация решения</strong><div><button id="print-button" class="outline-button" type="button">Печать / PDF</button><button id="close-presentation" class="outline-button" type="button">Закрыть</button></div></div>
+      <div id="slides" class="slides"></div>
+    </dialog>
+
+    <footer><div class="container footer-inner"><span>BEZBAB · Аким на 5 часов</span><span>Синтетические данные · HackAlem AI</span></div></footer>
+    <script type="module" src="./main.mjs?v=5"></script>
   </body>
 </html>
