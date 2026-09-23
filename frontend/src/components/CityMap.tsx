@@ -55,7 +55,7 @@ export function CityMap({
             patternUnits="userSpaceOnUse"
             patternTransform="rotate(-23)"
           >
-            <rect x="4" y="4" width="32" height="24" rx="3" fill="#e1e7df" />
+            <rect x="4" y="4" width="32" height="24" rx="3" fill="#e2e6ed" />
             <path d="M0 0H42V34" fill="none" stroke="#fff" strokeWidth="4" />
           </pattern>
           <pattern
@@ -64,18 +64,18 @@ export function CityMap({
             height="64"
             patternUnits="userSpaceOnUse"
           >
-            <circle cx="25" cy="20" r="12" fill="#dce8d7" />
-            <circle cx="49" cy="37" r="17" fill="#e1ebdc" />
+            <circle cx="25" cy="20" r="12" fill="#dfe8dd" />
+            <circle cx="49" cy="37" r="17" fill="#e7ecdf" />
           </pattern>
         </defs>
-        <rect width="740" height="450" fill="#eef0e8" />
+        <rect width="740" height="450" fill="#f0f2f5" />
         <rect width="740" height="450" fill="url(#parks)" opacity=".5" />
         <g
           transform={`translate(${370 - 370 * zoom} ${225 - 225 * zoom}) scale(${zoom})`}
         >
           <path
             d="M-30 318L782 39M27-10L380 477M201-10L659 459M-20 139L764 335"
-            stroke="#d8dfd6"
+            stroke="#dde1e8"
             strokeWidth="14"
           />
           <path
@@ -102,15 +102,15 @@ export function CityMap({
               <path
                 d={area.d}
                 fill="url(#blocks)"
-                stroke="#b3c6b8"
+                stroke="#a7b6ca"
                 strokeWidth="1.5"
                 strokeDasharray="5 4"
               />
               <path
                 d={area.d}
-                fill={active === area.id ? "#287a5c" : "#96b99b"}
+                fill={active === area.id ? "#3155d9" : "#a8b9d9"}
                 opacity={active === area.id ? ".21" : ".09"}
-                stroke={active === area.id ? "#287a5c" : "none"}
+                stroke={active === area.id ? "#3155d9" : "none"}
                 strokeWidth="3"
               />
               <rect
@@ -119,13 +119,13 @@ export function CityMap({
                 width="120"
                 height="47"
                 rx="9"
-                fill={active === area.id ? "#246b50" : "#fff"}
-                stroke={active === area.id ? "#246b50" : "#e0e6dd"}
+                fill={active === area.id ? "#2446c8" : "#fff"}
+                stroke={active === area.id ? "#2446c8" : "#e0e6dd"}
               />
               <text
                 x={area.x - 44}
                 y={area.y + 5}
-                fill={active === area.id ? "#fff" : "#37493e"}
+                fill={active === area.id ? "#fff" : "#283b57"}
                 fontSize="13"
                 fontWeight="600"
               >
@@ -134,7 +134,7 @@ export function CityMap({
               <text
                 x={area.x + 43}
                 y={area.y + 5}
-                fill={active === area.id ? "#d1efab" : "#377452"}
+                fill={active === area.id ? "#ffffff" : "#3456db"}
                 fontSize="13"
                 fontWeight="700"
                 textAnchor="middle"

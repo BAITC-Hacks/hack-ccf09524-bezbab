@@ -19,7 +19,7 @@ import {
   RotateCcw,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
+  ChartNoAxesCombined,
   Users,
   Wallet,
   X,
@@ -87,6 +87,9 @@ export default function App() {
     if (help || resetOpen) modal.current?.showModal();
     else modal.current?.close();
   }, [help, resetOpen]);
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [page]);
   function choose(item: Initiative) {
     commitSelection(selectInitiative(selection, item));
     setResult(null);
@@ -134,32 +137,30 @@ export default function App() {
     { id: "result", icon: BarChart3, label: "Результаты" },
   ] as const;
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={`app-shell page-${page}`}>
+      <header className="site-header">
         <a
           className="brand"
           href="#"
+          aria-label="Аким на 5 часов — главная"
           onClick={(e) => {
             e.preventDefault();
             setPage("overview");
           }}
         >
-          <span className="brand-mark">
-            <Building2 size={24} />
-          </span>
+          <span className="brand-mark">a.</span>
           <span>
-            АКИМ<span className="brand-sub">НА 5 ЧАСОВ</span>
+            akim<span className="brand-sub">на 5 часов</span>
           </span>
         </a>
-        <div className="workspace-label">ГОРОДСКОЙ ШТАБ</div>
         <nav aria-label="Основная навигация">
           {nav.map((item) => (
             <button
               key={item.id}
               className={`nav-item ${page === item.id ? "active" : ""}`}
               onClick={() => setPage(item.id)}
+              aria-current={page === item.id ? "page" : undefined}
             >
-              <item.icon size={19} />
               {item.label}
               {item.id === "decisions" && (
                 <span className="nav-count">{selection.length}/5</span>
@@ -167,91 +168,129 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-mission">
-          <span className="small-icon">
-            <Flag size={19} />
-          </span>
-          <h3>Ваш город. Ваши решения.</h3>
-          <p>Пять шагов, чтобы сделать жизнь в Астане лучше.</p>
-          <div className="mission-dots">
-            {categories.map((c) => (
-              <span
-                key={c.key}
-                className={
-                  selection.some((i) => i.category === c.key) ? "done" : ""
-                }
-              />
-            ))}
-          </div>
-          <small>{selection.length} из 5 решений принято</small>
-        </div>
-        <div className="sidebar-bottom">
+        <div className="header-actions">
           <button className="help-button" onClick={() => setHelp(true)}>
-            <CircleHelp size={18} />
-            Как играть
-            <ChevronRight size={16} />
+            Как играть <CircleHelp size={16} />
           </button>
-          <div className="team">
-            <span className="avatar">BB</span>
-            <div>
-              <strong>BEZ BAB</strong>
-              <small>Команда участника</small>
-            </div>
-            <span className="online-dot" />
-          </div>
+          <span className="team-tag">
+            <span className="team-dot" />
+            BEZ BAB
+          </span>
         </div>
-      </aside>
+      </header>
       <div className="main-shell">
-        <header className="topbar">
-          <div className="breadcrumb">
-            Симулятор <ChevronRight size={14} />
-            <span>{nav.find((n) => n.id === page)?.label}</span>
-          </div>
-          <div className="topbar-right">
-            <span className="demo-pill">
-              <span className="live-dot" />
-              Хакатон · демо
-            </span>
-            <button
-              className="icon-button"
-              aria-label="Правила симулятора"
-              onClick={() => setHelp(true)}
-            >
-              <CircleHelp size={19} />
-            </button>
-            <span className="avatar small">BB</span>
-          </div>
-        </header>
+        <div className="topbar">
+          <span>
+            <MapPin size={14} />
+            Астана, Казахстан
+          </span>
+          <span>
+            Городской симулятор<span className="topbar-separator">/</span>
+            HackAlem 2026
+          </span>
+        </div>
         <main>
-          <div className="page-heading">
-            <div>
-              <div className="eyebrow">
-                <span /> АСТАНА · СИМУЛЯТОР УПРАВЛЕНИЯ
+          {page === "overview" ? (
+            <section className="hero-layout">
+              <div className="hero-scene">
+                <img
+                  className="hero-photo"
+                  src="/images/astana.jpg"
+                  alt="Панорама Астаны со стороны EXPO"
+                  fetchPriority="high"
+                />
+                <div className="hero-shade" />
+                <div className="hero-content">
+                  <span className="hero-kicker">АСТАНА. СЛЕДУЮЩАЯ ГЛАВА.</span>
+                  <h1>
+                    Город, в котором
+                    <br />
+                    хочется жить.
+                  </h1>
+                  <p>
+                    Сегодня вы решаете, каким он станет.
+                    <br />
+                    Пять решений для будущего Астаны.
+                  </p>
+                  <button
+                    className="button hero-button"
+                    onClick={() => setPage("decisions")}
+                  >
+                    Перейти к решениям
+                    <ArrowRight size={19} />
+                  </button>
+                </div>
+                <div className="hero-caption">
+                  <span>АСТАНА / EXPO</span>
+                  <span>Место для ваших идей</span>
+                  <span>51°10′ с. ш. 71°26′ в. д.</span>
+                </div>
               </div>
-              <h1>
-                {page === "overview"
-                  ? "Большие перемены начинаются с вас."
-                  : page === "decisions"
-                    ? "Пять решений. Один город."
-                    : "Будущее, которое вы выбрали."}
-              </h1>
-              <p>
-                {page === "overview"
-                  ? "Изучите город, расставьте приоритеты и создайте свой сценарий развития."
-                  : page === "decisions"
-                    ? "Выберите по одной инициативе в каждом направлении. Каждый тенге имеет значение."
-                    : "Оцените влияние ваших решений на качество городской жизни."}
-              </p>
+              <aside className="hero-budget">
+                <div className="hero-budget-top">
+                  <span>Ваш ресурс для перемен</span>
+                  <Wallet size={22} />
+                </div>
+                <div className="hero-budget-value">
+                  {money(cityBudget.total - spent)}
+                  <span>млн ₸</span>
+                </div>
+                <p>
+                  Из 500 млн ₸ городского бюджета.
+                  <br />
+                  Распорядитесь ими с пользой.
+                </p>
+                <div className="hero-budget-progress">
+                  <span
+                    style={{ width: `${(spent / cityBudget.total) * 100}%` }}
+                  />
+                </div>
+                <div className="hero-budget-meta">
+                  <span>Распределено {money(spent)} млн ₸</span>
+                  <span>{selection.length}/5 решений</span>
+                </div>
+                <button
+                  className="button budget-button"
+                  onClick={() => setPage("decisions")}
+                >
+                  {selection.length
+                    ? "Продолжить сценарий"
+                    : "Распределить бюджет"}
+                  <ArrowRight size={19} />
+                </button>
+                <button className="hero-rules" onClick={() => setHelp(true)}>
+                  Как устроен симулятор
+                  <ChevronRight size={15} />
+                </button>
+              </aside>
+            </section>
+          ) : (
+            <div className="page-heading">
+              <div>
+                <span className="eyebrow">
+                  ВАШ СЦЕНАРИЙ / {page === "decisions" ? "01" : "02"}
+                </span>
+                <h1>
+                  {page === "decisions"
+                    ? "Что измените вы?"
+                    : "Город после ваших решений."}
+                </h1>
+                <p>
+                  {page === "decisions"
+                    ? "Выберите по одной инициативе в каждом направлении. Бюджет — 500 млн ₸."
+                    : "Результат, сильные стороны и возможности для следующего шага."}
+                </p>
+              </div>
+              <button
+                className="button secondary reset"
+                onClick={() => setResetOpen(true)}
+                disabled={busy}
+              >
+                <RotateCcw size={16} />
+                Новый сценарий
+              </button>
             </div>
-            <button
-              className="button secondary reset"
-              onClick={() => setResetOpen(true)}
-              disabled={busy}
-            >
-              <RotateCcw size={15} />
-              Новый сценарий
-            </button>
-          </div>
+          )}
           {storageWarning && (
             <div className="notice">
               Браузер не разрешил сохранение. Сценарий доступен до закрытия
@@ -335,7 +374,7 @@ export default function App() {
                 <section className="panel map-panel">
                   <div className="panel-heading">
                     <div>
-                      <h2>Город в деталях</h2>
+                      <h2>Познакомьтесь с городом</h2>
                       <p>Выберите район, чтобы изучить его показатели</p>
                     </div>
                     <span className="chip">
@@ -425,10 +464,8 @@ export default function App() {
               </div>
               <div className="section-heading">
                 <div>
-                  <h2>Четыре района. Разные потребности.</h2>
-                  <p>
-                    Сбалансированное развитие начинается с внимания к каждому.
-                  </p>
+                  <h2>Один город. Четыре характера.</h2>
+                  <p>Выберите район и узнайте, что нужно его жителям.</p>
                 </div>
                 <span className="muted">Синтетический датасет</span>
               </div>
@@ -471,10 +508,10 @@ export default function App() {
               </div>
               <section className="cta-panel">
                 <div className="cta-icon">
-                  <Sparkles size={25} />
+                  <ChartNoAxesCombined size={25} />
                 </div>
                 <div>
-                  <h2>Каким станет город — решать вам.</h2>
+                  <h2>Хороший город начинается с решения.</h2>
                   <p>
                     Распределите бюджет между пятью направлениями и оцените
                     результат.
@@ -646,7 +683,7 @@ export default function App() {
                   </strong>
                 </div>
                 <div className="analysis-hint">
-                  <Sparkles size={19} />
+                  <ChartNoAxesCombined size={19} />
                   <p>
                     {import.meta.env.VITE_ANALYSIS_URL
                       ? "AI оценит сильные стороны и компромиссы вашего сценария."
@@ -658,7 +695,7 @@ export default function App() {
                   disabled={selection.length !== 5 || busy}
                   onClick={analyze}
                 >
-                  <Sparkles size={17} />
+                  <ChartNoAxesCombined size={17} />
                   {busy ? "Анализируем сценарий…" : "Оценить сценарий"}
                   <ArrowRight size={16} />
                 </button>
@@ -689,7 +726,7 @@ export default function App() {
               <div className="results-layout">
                 <section className="result-hero">
                   <span className="chip">
-                    <Sparkles size={14} />
+                    <ChartNoAxesCombined size={14} />
                     {result.source === "ai"
                       ? "AI-анализ завершён"
                       : "Локальная модель · демо"}

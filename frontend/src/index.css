@@ -1,6 +1,17 @@
 @import "tailwindcss";
 @theme {
-  --font-sans: "Segoe UI", Arial, sans-serif;
+  --font-sans: Arial, "Segoe UI", sans-serif;
+}
+:root {
+  font-family: Arial, "Segoe UI", sans-serif;
+  color: #202432;
+  background: #f5f6f8;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  --blue: #304ddd;
+  --ink: #202432;
+  --muted: #757b8c;
+  --line: #e4e6ec;
 }
 * {
   box-sizing: border-box;
@@ -8,34 +19,32 @@
 body {
   margin: 0;
   min-width: 360px;
-  font-family: "Segoe UI", Arial, sans-serif;
-  color: #293b33;
-  background: #f6f7f4;
-  font-size: 14px;
-  -webkit-font-smoothing: antialiased;
 }
 button,
 a {
   -webkit-tap-highlight-color: transparent;
-  transition:
-    background 0.18s,
-    border-color 0.18s,
-    box-shadow 0.18s,
-    color 0.18s;
 }
 button {
   font: inherit;
-  cursor: pointer;
   border: 0;
+  cursor: pointer;
 }
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.48;
+  opacity: 0.45;
+}
+button,
+a {
+  transition:
+    background 0.18s,
+    color 0.18s,
+    border-color 0.18s,
+    transform 0.18s;
 }
 button:focus-visible,
 a:focus-visible,
 [tabindex]:focus-visible {
-  outline: 3px solid #8eb798;
+  outline: 3px solid #8196ff;
   outline-offset: 4px;
 }
 a {
@@ -52,5 +61,5 @@ button svg {
   flex-shrink: 0;
 }
 ::selection {
-  background: #d8eab5;
+  background: #dce3ff;
 }
