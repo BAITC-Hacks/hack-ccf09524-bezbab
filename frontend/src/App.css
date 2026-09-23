@@ -2175,3 +2175,21 @@ main {
     scroll-behavior: auto !important;
   }
 }
+
+.page-city .stat-grid {
+  display: none;
+}
+.city-loading {
+  height: 550px;
+  display: grid;
+  place-items: center;
+  background: #edf2f8;
+  border-radius: 14px;
+  color: #718299;
+}
+@media (max-width: 550px) {
+  .site-header .nav-item {
+    font-size: 10px;
+    gap: 3px;
+  }
+}

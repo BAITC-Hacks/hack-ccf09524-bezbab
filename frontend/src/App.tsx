@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import {
   ArrowDownToLine,
@@ -40,6 +40,7 @@ import {
 import type { Analysis } from "./lib/simulation";
 import "./App.css";
 import { CityMap } from "./components/CityMap";
+const City3D = lazy(() => import("./components/City3D"));
 const icons = {
   transport: Bus,
   greenery: Leaf,
@@ -54,9 +55,9 @@ const average = (values: import("./types/city").DistrictMetrics) =>
 
 export default function App() {
   const [selection, setSelection] = useState<Initiative[]>(restoreSelection);
-  const [page, setPage] = useState<"overview" | "decisions" | "result">(
-    "overview",
-  );
+  const [page, setPage] = useState<
+    "overview" | "city" | "decisions" | "result"
+  >("overview");
   const [category, setCategory] = useState<MetricKey>("transport");
   const [activeDistrict, setActiveDistrict] = useState("yesil");
   const [result, setResult] = useState<Analysis | null>(null);
@@ -133,6 +134,7 @@ export default function App() {
   }
   const nav = [
     { id: "overview", icon: Layers3, label: "Обзор города" },
+    { id: "city", icon: Building2, label: "3D-город" },
     { id: "decisions", icon: SlidersHorizontal, label: "Мои решения" },
     { id: "result", icon: BarChart3, label: "Результаты" },
   ] as const;
@@ -214,9 +216,9 @@ export default function App() {
                   </p>
                   <button
                     className="button hero-button"
-                    onClick={() => setPage("decisions")}
+                    onClick={() => setPage("city")}
                   >
-                    Перейти к решениям
+                    Исследовать 3D-город
                     <ArrowRight size={19} />
                   </button>
                 </div>
@@ -268,17 +270,23 @@ export default function App() {
             <div className="page-heading">
               <div>
                 <span className="eyebrow">
-                  ВАШ СЦЕНАРИЙ / {page === "decisions" ? "01" : "02"}
+                  {page === "city"
+                    ? "ГОРОД В ВАШИХ РУКАХ"
+                    : `ВАШ СЦЕНАРИЙ / ${page === "decisions" ? "01" : "02"}`}
                 </span>
                 <h1>
-                  {page === "decisions"
-                    ? "Что измените вы?"
-                    : "Город после ваших решений."}
+                  {page === "city"
+                    ? "Большие перемены начинаются с вас."
+                    : page === "decisions"
+                      ? "Что измените вы?"
+                      : "Город после ваших решений."}
                 </h1>
                 <p>
-                  {page === "decisions"
-                    ? "Выберите по одной инициативе в каждом направлении. Бюджет — 500 млн ₸."
-                    : "Результат, сильные стороны и возможности для следующего шага."}
+                  {page === "city"
+                    ? "Исследуйте районы, выбирайте проекты и наблюдайте, как меняется город."
+                    : page === "decisions"
+                      ? "Выберите по одной инициативе в каждом направлении. Бюджет — 500 млн ₸."
+                      : "Результат, сильные стороны и возможности для следующего шага."}
                 </p>
               </div>
               <button
@@ -289,6 +297,25 @@ export default function App() {
                 <RotateCcw size={16} />
                 Новый сценарий
               </button>
+            </div>
+          )}
+          {page === "city" && (
+            <Suspense
+              fallback={<div className="city-loading">Собираем город…</div>}
+            >
+              <City3D
+                selection={selection}
+                onChoose={choose}
+                activeDistrict={activeDistrict}
+                onSelect={setActiveDistrict}
+                busy={busy}
+                onAnalyze={analyze}
+              />
+            </Suspense>
+          )}
+          {page === "city" && error && (
+            <div className="notice" role="alert">
+              {error}
             </div>
           )}
           {storageWarning && (

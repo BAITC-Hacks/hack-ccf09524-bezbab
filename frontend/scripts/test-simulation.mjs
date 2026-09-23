@@ -10,6 +10,25 @@ try {
     "/src/data/initiatives.ts",
   );
   const { districts } = await server.ssrLoadModule("/src/data/mockCityData.ts");
+  const { visualPlan, districtLayout } = await server.ssrLoadModule(
+    "/src/scene/cityPlan.ts",
+  );
+  const visualized = visualPlan(initiatives);
+  assert.equal(visualized.length, 15);
+  assert.equal(new Set(districtLayout.map((d) => d.id)).size, 4);
+  assert.deepEqual(visualPlan([]), []);
+  for (const item of visualized) {
+    assert.equal(
+      item.location.id,
+      item.district,
+      "3D additions belong to the initiative district",
+    );
+    assert.ok(
+      item.visualDescription &&
+        Number.isFinite(item.location.x) &&
+        Number.isFinite(item.location.z),
+    );
+  }
   const baseline = JSON.stringify(districts);
   assert.equal(model.qualityScore(districts), 54.8);
   let count = 0;
