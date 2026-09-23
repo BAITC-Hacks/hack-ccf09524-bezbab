@@ -1,9 +1,12 @@
 import { ACTIONS, BUDGET, CATEGORIES, DISTRICTS } from "./data.mjs";
-import { analyze, costOf, evaluate, findBestScenario, getAction, getDistrict, validateSelections } from "./engine.mjs";
+import { analyze, costOf, evaluate, findBestScenario, findBestSingleChange, getAction, getDistrict, validateSelections } from "./engine.mjs";
 
 const selections = {};
 let bestScenario;
+let singleAdvice;
+let currentResult;
 let resultVersion = 0;
+const storageKey = "bezbab-city-scenarios-v1";
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
@@ -25,6 +28,7 @@ function renderDecisions() {
 
 function updateState() {
   resultVersion += 1;
+  currentResult = null;
   const cost = costOf(selections);
   const completed = CATEGORIES.filter((category) => selections[category.id]?.actionId && selections[category.id]?.districtId).length;
   $("#spent").textContent = cost;
@@ -62,6 +66,7 @@ function setChoice(categoryId, patch) {
 
 function renderResult(result) {
   const version = ++resultVersion;
+  currentResult = result;
   const analysis = analyze(result);
   $("#final-score").textContent = result.score;
   $("#score-change").textContent = `+${result.delta} пункта к исходному уровню`;
@@ -75,6 +80,22 @@ function renderResult(result) {
   $("#results").hidden = false;
   $("#advisor-copy").textContent = "Сравниваем допустимые комбинации решений...";
   $("#apply-advice").disabled = true;
+  singleAdvice = findBestSingleChange(selections);
+  $("#apply-single-advice").disabled = !singleAdvice;
+  if (singleAdvice) {
+    const before = getAction(singleAdvice.categoryId, singleAdvice.from.actionId);
+    const after = getAction(singleAdvice.categoryId, singleAdvice.to.actionId);
+    const district = getDistrict(singleAdvice.to.districtId);
+    const gain = Math.round((singleAdvice.result.score - result.score) * 10) / 10;
+    const instruction = before.id === after.id
+      ? `перенесите «${after.name}» в район ${district.name}`
+      : `замените «${before.name}» на «${after.name}» в районе ${district.name}`;
+    $("#single-advice-copy").textContent = `Один шаг: ${instruction}. Score вырастет на ${gain} п. до ${singleAdvice.result.score}; стоимость сценария — ${singleAdvice.result.cost} ед.`;
+  } else {
+    $("#single-advice-copy").textContent = "Одной заменой улучшить этот сценарий не удалось.";
+  }
+  $("#comparison-output").textContent = "";
+  renderSavedScenarios();
   $("#results").scrollIntoView({ behavior: "smooth", block: "start" });
 
   // Вычисление отложено, чтобы результат отрисовался до полного перебора.
@@ -110,6 +131,51 @@ $("#apply-advice").addEventListener("click", () => {
   CATEGORIES.forEach((category) => { selections[category.id] = { ...bestScenario.selections[category.id] }; });
   updateState();
   renderResult(bestScenario.result);
+});
+$("#apply-single-advice").addEventListener("click", () => {
+  if (!singleAdvice) return;
+  CATEGORIES.forEach((category) => { selections[category.id] = { ...singleAdvice.selections[category.id] }; });
+  updateState();
+  renderResult(singleAdvice.result);
+});
+
+function readSavedScenarios() {
+  try {
+    const items = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
+    return Array.isArray(items) ? items.filter((item) => item && typeof item.id === "string" && item.selections && evaluate(item.selections).valid).slice(-5) : [];
+  } catch { return []; }
+}
+
+function renderSavedScenarios() {
+  const items = readSavedScenarios();
+  $("#saved-scenarios").innerHTML = items.length ? items.map((item) => {
+    const result = evaluate(item.selections);
+    return `<div class="saved-row"><div><strong>${escapeHtml(item.name)}</strong><span>Score ${result.score} · ${result.cost} ед.</span></div><button type="button" data-compare="${escapeHtml(item.id)}">Сравнить ↗</button></div>`;
+  }).join("") : '<p class="empty-scenarios">Пока нет сохранённых сценариев.</p>';
+}
+
+$("#save-scenario").addEventListener("click", () => {
+  if (!currentResult?.valid) return;
+  const items = readSavedScenarios();
+  const item = { id: String(Date.now()), name: `Сценарий ${new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`, selections: structuredClone(selections) };
+  try {
+    localStorage.setItem(storageKey, JSON.stringify([...items, item].slice(-5)));
+    renderSavedScenarios();
+    $("#comparison-output").textContent = "Сценарий сохранён в этом браузере.";
+  } catch { $("#comparison-output").textContent = "Браузер не разрешил сохранить сценарий локально."; }
+});
+
+$("#saved-scenarios").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-compare]");
+  if (!button || !currentResult?.valid) return;
+  const saved = readSavedScenarios().find((item) => item.id === button.dataset.compare);
+  if (!saved) return;
+  const previous = evaluate(saved.selections);
+  const scoreDifference = Math.round((currentResult.score - previous.score) * 10) / 10;
+  const costDifference = currentResult.cost - previous.cost;
+  const changed = CATEGORIES.filter((category) => JSON.stringify(saved.selections[category.id]) !== JSON.stringify(selections[category.id])).map((category) => category.label.toLowerCase());
+  const verdict = scoreDifference === 0 ? "даёт такой же Score" : `${scoreDifference > 0 ? "лучше" : "хуже"} на ${Math.abs(scoreDifference)} п.`;
+  $("#comparison-output").innerHTML = `<strong>Текущий сценарий ${verdict}</strong><span>Разница в расходах: ${costDifference >= 0 ? "+" : ""}${costDifference} ед. Изменены направления: ${changed.length ? escapeHtml(changed.join(", ")) : "нет"}.</span>`;
 });
 
 districtCards(DISTRICTS, $("#baseline-grid"));

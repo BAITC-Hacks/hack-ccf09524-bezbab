@@ -126,3 +126,25 @@ export function findBestScenario() {
   search(0, 0, {});
   return { selections: bestSelections, result: best };
 }
+
+// Совет, который можно выполнить одним изменением уже выбранного сценария.
+export function findBestSingleChange(selections) {
+  const current = evaluate(selections);
+  if (!current.valid) return null;
+  let best = null;
+  for (const categoryId of categoryIds) {
+    for (const action of ACTIONS[categoryId]) {
+      for (const district of DISTRICTS) {
+        if (selections[categoryId].actionId === action.id && selections[categoryId].districtId === district.id) continue;
+        const next = { ...selections, [categoryId]: { actionId: action.id, districtId: district.id } };
+        if (costOf(next) > BUDGET) continue;
+        const result = evaluate(next);
+        if (!result.valid || result.score <= current.score) continue;
+        if (!best || result.score > best.result.score || (result.score === best.result.score && result.cost < best.result.cost)) {
+          best = { categoryId, from: { ...selections[categoryId] }, to: next[categoryId], selections: next, result };
+        }
+      }
+    }
+  }
+  return best;
+}

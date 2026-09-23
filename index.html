@@ -75,12 +75,13 @@
         </div>
         <div class="analysis-grid"><article class="analysis-card"><span class="analysis-icon good">↗</span><h3>Сильные стороны</h3><ul id="strengths-list"></ul></article><article class="analysis-card"><span class="analysis-icon caution">!</span><h3>Риски и компромиссы</h3><ul id="risks-list"></ul></article></div>
         <div class="district-results"><div class="subsection-heading"><h3>Показатели районов</h3><p>Итог после выбранных решений</p></div><div id="district-results-grid" class="district-grid"></div></div>
-        <div class="advisor-panel"><div><p class="eyebrow">АЛГОРИТМИЧЕСКИЙ СОВЕТНИК</p><h3>Можно ли лучше?</h3><p id="advisor-copy">Сравниваем допустимые комбинации решений...</p></div><button id="apply-advice" class="outline-button" type="button" disabled>Применить совет ↗</button></div>
+        <div class="advisor-panel"><div><p class="eyebrow">АЛГОРИТМИЧЕСКИЙ СОВЕТНИК</p><h3>Что улучшить?</h3><p id="single-advice-copy"></p><p id="advisor-copy">Сравниваем допустимые комбинации решений...</p></div><div class="advisor-actions"><button id="apply-single-advice" class="outline-button" type="button" disabled>Изменить одно решение ↗</button><button id="apply-advice" class="outline-button" type="button" disabled>Показать лучший сценарий ↗</button></div></div>
+        <div class="scenario-panel"><div class="scenario-heading"><div><p class="eyebrow">СРАВНЕНИЕ</p><h3>Сохранённые сценарии</h3><p>Сохраните результат в этом браузере и сравните его с текущим выбором.</p></div><button id="save-scenario" class="outline-button" type="button">Сохранить сценарий +</button></div><div id="saved-scenarios" class="saved-scenarios"></div><div id="comparison-output" class="comparison-output" role="status"></div></div>
         <p class="model-note">Метод: объяснимая экспертная модель и полный перебор допустимых сценариев. Без внешнего AI API. <a href="./README.md" target="_blank" rel="noopener">Формулы и ограничения — в README.</a></p>
       </section>
     </main>
 
     <footer><div class="container footer-inner"><span>BEZBAB · Аким на 5 часов</span><span>Синтетические данные · Демоверсия для HackAlem AI</span></div></footer>
-    <script type="module" src="./main.mjs?v=2"></script>
+    <script type="module" src="./main.mjs?v=3"></script>
   </body>
 </html>
