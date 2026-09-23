@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f6f3ec" />
     <meta name="description" content="Аким на 5 часов — симулятор городских решений с единым бюджетом и объяснимой оценкой качества жизни." />
     <title>Аким на 5 часов — BEZBAB</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=4" />
   </head>
   <body>
     <header class="topbar">
@@ -58,6 +58,7 @@
               <div class="budget-divider"></div>
               <p class="aside-title">Ваш сценарий</p>
               <div id="selection-progress" class="selection-progress"></div>
+              <div id="live-score" class="live-score" aria-live="polite" hidden></div>
               <div id="validation-message" class="validation-message" role="status">Выберите по одному решению в каждом направлении.</div>
               <button id="calculate-button" class="primary-button full-width" type="button" disabled>Рассчитать сценарий <span>↗</span></button>
               <button id="reset-button" class="text-button" type="button">Сбросить выбор</button>
@@ -69,19 +70,20 @@
       <section id="results" class="container results-section" aria-labelledby="results-title" hidden>
         <div class="section-heading"><div><p class="eyebrow">РЕЗУЛЬТАТ МОДЕЛИ</p><h2 id="results-title">Что изменилось?</h2></div><p>Оценка основана на выбранных инициативах, потребностях районов и неравномерности результата.</p></div>
         <div class="result-hero">
-          <div class="score-block"><p>ASTANA QUALITY OF LIFE SCORE</p><div><strong id="final-score">—</strong><span>/ 100</span></div><small id="score-change"></small></div>
+          <div class="score-block"><p>ASTANA QUALITY OF LIFE SCORE</p><div><strong id="final-score">—</strong><span>/ 100</span></div><small id="score-change"></small><p id="score-details" class="score-details"></p></div>
           <div class="score-comparison"><div><span>До решений</span><strong id="baseline-score"></strong></div><div class="comparison-track"><div id="baseline-fill"></div></div><div><span>После решений</span><strong id="after-score"></strong></div><div class="comparison-track accent"><div id="after-fill"></div></div></div>
           <div class="result-stamp">ВАШЕ<br />РЕШЕНИЕ<br /><span>ИМЕЕТ ВЕС</span></div>
         </div>
         <div class="analysis-grid"><article class="analysis-card"><span class="analysis-icon good">↗</span><h3>Сильные стороны</h3><ul id="strengths-list"></ul></article><article class="analysis-card"><span class="analysis-icon caution">!</span><h3>Риски и компромиссы</h3><ul id="risks-list"></ul></article></div>
-        <div class="district-results"><div class="subsection-heading"><h3>Показатели районов</h3><p>Итог после выбранных решений</p></div><div id="district-results-grid" class="district-grid"></div></div>
+        <div class="impact-panel"><div class="subsection-heading"><h3>Вклад каждого решения</h3><p>Прямой и побочный эффект, эффективность затрат</p></div><div id="impact-list" class="impact-list"></div></div>
+        <div class="district-results"><div class="subsection-heading"><h3>Показатели районов</h3><p>Цветная часть полосы — прирост после ваших решений</p></div><div id="district-results-grid" class="district-grid"></div></div>
         <div class="advisor-panel"><div><p class="eyebrow">АЛГОРИТМИЧЕСКИЙ СОВЕТНИК</p><h3>Что улучшить?</h3><p id="single-advice-copy"></p><p id="advisor-copy">Сравниваем допустимые комбинации решений...</p></div><div class="advisor-actions"><button id="apply-single-advice" class="outline-button" type="button" disabled>Изменить одно решение ↗</button><button id="apply-advice" class="outline-button" type="button" disabled>Показать лучший сценарий ↗</button></div></div>
-        <div class="scenario-panel"><div class="scenario-heading"><div><p class="eyebrow">СРАВНЕНИЕ</p><h3>Сохранённые сценарии</h3><p>Сохраните результат в этом браузере и сравните его с текущим выбором.</p></div><button id="save-scenario" class="outline-button" type="button">Сохранить сценарий +</button></div><div id="saved-scenarios" class="saved-scenarios"></div><div id="comparison-output" class="comparison-output" role="status"></div></div>
+        <div class="scenario-panel"><div class="scenario-heading"><div><p class="eyebrow">СРАВНЕНИЕ</p><h3>Сохранённые сценарии</h3><p>Сохраните результат в этом браузере и сравните его с текущим выбором.</p></div><div class="scenario-buttons"><button id="save-scenario" class="outline-button" type="button">Сохранить сценарий +</button><button id="share-scenario" class="outline-button" type="button">Скопировать ссылку ↗</button></div></div><div id="saved-scenarios" class="saved-scenarios"></div><div id="comparison-output" class="comparison-output" role="status"></div></div>
         <p class="model-note">Метод: объяснимая экспертная модель и полный перебор допустимых сценариев. Без внешнего AI API. <a href="./README.md" target="_blank" rel="noopener">Формулы и ограничения — в README.</a></p>
       </section>
     </main>
 
     <footer><div class="container footer-inner"><span>BEZBAB · Аким на 5 часов</span><span>Синтетические данные · Демоверсия для HackAlem AI</span></div></footer>
-    <script type="module" src="./main.mjs?v=3"></script>
+    <script type="module" src="./main.mjs?v=4"></script>
   </body>
 </html>

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { BUDGET } from "./data.mjs";
-import { costOf, evaluate, findBestScenario, findBestSingleChange, validateSelections } from "./engine.mjs";
+import { analyze, costOf, decodeSelections, encodeSelections, evaluate, findBestScenario, findBestSingleChange, previewGain, validateSelections } from "./engine.mjs";
 
 const base = {
   transport: { actionId: "walk", districtId: "almaty" },
@@ -53,4 +53,22 @@ test("single-change advice identifies one affordable improvement", () => {
   assert.ok(advice.result.cost <= BUDGET);
   const changed = Object.keys(base).filter((id) => JSON.stringify(base[id]) !== JSON.stringify(advice.selections[id]));
   assert.deepEqual(changed, [advice.categoryId]);
+});
+
+test("scenario share code round-trips and rejects broken or over-budget input", () => {
+  const code = encodeSelections(base);
+  assert.deepEqual(decodeSelections(code), base);
+  assert.equal(decodeSelections("bus.almaty"), null);
+  assert.equal(decodeSelections(code.replace("walk", "fake")), null);
+  assert.equal(decodeSelections("bus.almaty~park.almaty~clinic.almaty~lighting.almaty~repair.almaty"), null);
+});
+
+test("preview gain favours the district with the weaker baseline", () => {
+  assert.ok(previewGain("transport", "bus", "almaty") > previewGain("transport", "bus", "esil"));
+  assert.equal(previewGain("transport", "fake", "almaty"), null);
+});
+
+test("analysis flags districts left without any decision", () => {
+  const analysis = analyze(evaluate(base));
+  assert.ok(analysis.risks.some((risk) => risk.includes("Есиль")));
 });

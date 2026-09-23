@@ -3,6 +3,38 @@ import { ACTIONS, BUDGET, CATEGORIES, DISTRICTS } from "./data.mjs";
 const clamp = (value) => Math.max(0, Math.min(100, value));
 const round = (value) => Math.round(value * 10) / 10;
 const categoryIds = CATEGORIES.map((category) => category.id);
+const SPILLOVERS = { transport: ["service", 0.12], green: ["safety", 0.08], social: ["safety", 0.1], safety: ["transport", 0.07], service: ["social", 0.08] };
+
+// Более отстающий район получает больший эффект, но показатель ограничен 100.
+function directGain(action, baseline, current) {
+  const needMultiplier = 0.75 + (100 - baseline) / 200;
+  return round(Math.min(100 - current, action.gain * needMultiplier));
+}
+
+// Ожидаемый прямой эффект мероприятия в районе без учёта других решений — подсказка для выбора.
+export function previewGain(categoryId, actionId, districtId) {
+  const action = getAction(categoryId, actionId);
+  const district = getDistrict(districtId);
+  if (!action || !district) return null;
+  return directGain(action, district.metrics[categoryId], district.metrics[categoryId]);
+}
+
+// Компактная запись сценария для ссылки: "bus.almaty~park.esil~..." в порядке направлений.
+export function encodeSelections(selections) {
+  return categoryIds.map((id) => `${selections[id]?.actionId ?? ""}.${selections[id]?.districtId ?? ""}`).join("~");
+}
+
+export function decodeSelections(text) {
+  const parts = String(text ?? "").split("~");
+  if (parts.length !== categoryIds.length) return null;
+  const selections = {};
+  for (const [index, id] of categoryIds.entries()) {
+    const [actionId, districtId] = parts[index].split(".");
+    if (!getAction(id, actionId) || !getDistrict(districtId)) return null;
+    selections[id] = { actionId, districtId };
+  }
+  return validateSelections(selections).length ? null : selections;
+}
 
 export function getAction(categoryId, actionId) {
   return ACTIONS[categoryId]?.find((action) => action.id === actionId);
@@ -44,21 +76,22 @@ function equityGap(districts) {
 export function evaluate(selections) {
   const errors = validateSelections(selections);
   if (errors.length) return { valid: false, errors, cost: costOf(selections) };
+  return simulate(selections);
+}
 
-  const districts = structuredClone(DISTRICTS);
+// Расчёт без проверки: вызывается только для заведомо корректных сценариев.
+function simulate(selections) {
+  const districts = DISTRICTS.map((district) => ({ ...district, metrics: { ...district.metrics } }));
   const impacts = [];
-  const spillovers = { transport: ["service", 0.12], green: ["safety", 0.08], social: ["safety", 0.1], safety: ["transport", 0.07], service: ["social", 0.08] };
 
   for (const id of categoryIds) {
     const choice = selections[id];
     const district = districts.find((item) => item.id === choice.districtId);
     const action = getAction(id, choice.actionId);
     const baseline = DISTRICTS.find((item) => item.id === district.id).metrics[id];
-    // Более отстающий район получает больший эффект, но показатель ограничен 100.
-    const needMultiplier = 0.75 + (100 - baseline) / 200;
-    const direct = round(Math.min(100 - district.metrics[id], action.gain * needMultiplier));
+    const direct = directGain(action, baseline, district.metrics[id]);
     district.metrics[id] = round(clamp(district.metrics[id] + direct));
-    const [otherId, ratio] = spillovers[id];
+    const [otherId, ratio] = SPILLOVERS[id];
     const indirect = round(Math.min(100 - district.metrics[otherId], direct * ratio));
     district.metrics[otherId] = round(clamp(district.metrics[otherId] + indirect));
     impacts.push({ categoryId: id, districtId: district.id, actionId: action.id, direct, indirect, otherId, cost: action.cost });
@@ -94,12 +127,19 @@ export function analyze(result) {
   const strongestDistrict = getDistrict(strongest.districtId);
   const weakest = result.districts.flatMap((district) => categoryIds.map((id) => ({ district: district.name, category: CATEGORIES.find((item) => item.id === id).label, value: district.metrics[id] })))
     .sort((a, b) => a.value - b.value)[0];
+  const districtMean = (district) => categoryIds.reduce((sum, id) => sum + district.metrics[id], 0) / categoryIds.length;
+  const growth = result.districts.map((district) => ({ name: district.name, gain: round(districtMean(district) - districtMean(getDistrict(district.id))) }))
+    .sort((a, b) => b.gain - a.gain);
+  const untouched = DISTRICTS.filter((district) => !result.impacts.some((impact) => impact.districtId === district.id));
   const strengths = [`Максимальный локальный эффект: ${strongestCategory.label.toLowerCase()} в районе ${strongestDistrict.name} (+${strongest.direct} п.).`, `Итоговый индекс вырос на ${result.delta} п. при расходе ${result.cost} из ${BUDGET} ед.`];
+  if (growth[0].gain > 0) strengths.push(`Больше всех выигрывает район ${growth[0].name}: средняя оценка +${growth[0].gain} п.`);
+  if (result.gap < result.baselineGap) strengths.push(`Разрыв между районами сократился с ${result.baselineGap} до ${result.gap} п.`);
   const risks = [`Самое слабое место после изменений — ${weakest.category.toLowerCase()} в районе ${weakest.district} (${round(weakest.value)} из 100).`];
+  for (const district of untouched) risks.push(`Район ${district.name} не получил ни одного решения — жители могут воспринять это как несправедливость.`);
   if (result.equityPenalty > 0) risks.push(`Разрыв между районами вырос; штраф за неравномерность: ${result.equityPenalty} п.`);
   if (result.remaining < 10) risks.push("Осталось меньше 10 единиц резерва для непредвиденных расходов.");
   else risks.push(`Резерв бюджета — ${result.remaining} ед.; его можно сохранить на неожиданные события.`);
-  return { strengths, risks, weakest };
+  return { strengths, risks, weakest, growth };
 }
 
 export function findBestScenario() {
@@ -109,10 +149,10 @@ export function findBestScenario() {
 
   function search(index, cost, selections) {
     if (index === categoryIds.length) {
-      const result = evaluate(selections);
-      if (result.valid && (!best || result.score > best.score || (result.score === best.score && cost < best.cost))) {
+      const result = simulate(selections);
+      if ((!best || result.score > best.score || (result.score === best.score && cost < best.cost))) {
         best = result;
-        bestSelections = structuredClone(selections);
+        bestSelections = { ...selections };
       }
       return;
     }
