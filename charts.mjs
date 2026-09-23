@@ -53,7 +53,7 @@ export function pareto(points, { you, youCost, baseline }) {
   const pad = { left: 44, right: 20, top: 20, bottom: 34 };
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
-  const xLo = Math.min(60, youCost);
+  const xLo = Math.floor(Math.min(60, youCost, points[0].cost) / 10) * 10;
   const xHi = 100;
   const yLo = Math.floor(Math.min(you, points[0].score) * 2) / 2;
   const yHi = Math.ceil(points[points.length - 1].score * 2) / 2;
@@ -66,7 +66,7 @@ export function pareto(points, { you, youCost, baseline }) {
   });
   const gridY = [];
   for (let v = yLo; v <= yHi + 1e-9; v += 0.5) gridY.push(`<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(v)}" y2="${y(v)}" stroke="${GRID}"/><text x="${pad.left - 8}" y="${y(v) + 4}" text-anchor="end" font-size="10" fill="${MUTED}">${v.toFixed(1)}</text>`);
-  const gridX = [60, 70, 80, 90, 100].filter((v) => v >= xLo).map((v) => `<text x="${x(v)}" y="${pad.top + plotH + 17}" text-anchor="middle" font-size="11" fill="${MUTED}">${v}</text>`);
+  const gridX = Array.from({ length: Math.floor((xHi - xLo) / 10) + 1 }, (_, i) => xLo + i * 10).map((v) => `<text x="${x(v)}" y="${pad.top + plotH + 17}" text-anchor="middle" font-size="11" fill="${MUTED}">${v}</text>`);
   const dots = points.map((point) => `<circle cx="${x(point.cost)}" cy="${y(point.score)}" r="4" fill="${BEST}" stroke="#fff" stroke-width="2"><title>≤ ${point.cost} ед.: максимум ${fmt(point.score)}</title></circle><circle cx="${x(point.cost)}" cy="${y(point.score)}" r="10" fill="transparent"><title>≤ ${point.cost} ед.: максимум ${fmt(point.score)}</title></circle>`).join("");
   const yourDot = `<circle cx="${x(youCost)}" cy="${y(you)}" r="6" fill="${YOU}" stroke="#fff" stroke-width="2"><title>Ваш сценарий: ${fmt(you)} за ${youCost} ед.</title></circle>`
     + `<text x="${x(youCost) + (x(youCost) > width - 120 ? -10 : 10)}" y="${y(you) + 16}" text-anchor="${x(youCost) > width - 120 ? "end" : "start"}" font-size="11" font-weight="700" fill="${INK}">Вы ${fmt(you)}</text>`;

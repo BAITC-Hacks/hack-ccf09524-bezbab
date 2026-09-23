@@ -1,14 +1,14 @@
-import { BUDGET, CONFLICTS, DECISIONS_REQUIRED, DIRECTIONS, DISTRICTS, EVENTS, HORIZON, INDICATORS, MAX_PER_DIRECTION, MEASURES, SCORE_RULES, SYNERGIES } from "./data.mjs";
+import { BUDGET, CONFLICTS, DECISIONS_REQUIRED, DIRECTIONS, DISTRICTS, EVENTS, HORIZON, INDICATORS, MAX_PER_DIRECTION, MEASURES, SCORE_RULES, SYNERGIES, onModelChange } from "./data.mjs";
 
 // Внутреннее представление: плоский массив 5 районов × 10 показателей, ячейка = район * 10 + показатель.
 export const K = INDICATORS.length;
 export const N_DISTRICTS = DISTRICTS.length;
-export const WEIGHTS = Float64Array.from(INDICATORS, (indicator) => indicator.weight);
+export const WEIGHTS = new Float64Array(K); // обновляется при смене модели
 export const SHARES = Float64Array.from(DISTRICTS, (district) => district.share);
 export const BASE_CELLS = Float64Array.from(DISTRICTS.flatMap((district) => INDICATORS.map((indicator) => district.metrics[indicator.id])));
 const indicatorIndex = Object.fromEntries(INDICATORS.map((indicator, index) => [indicator.id, index]));
 const districtIndex = Object.fromEntries(DISTRICTS.map((district, index) => [district.id, index]));
-export const measureIndex = Object.fromEntries(MEASURES.map((measure, index) => [measure.id, index]));
+export const measureIndex = {}; // обновляется при смене модели
 
 export const realizedShare = (measure) => (HORIZON - measure.lag) / HORIZON;
 export const getMeasure = (id) => MEASURES.find((measure) => measure.id === id);
@@ -49,8 +49,11 @@ export function scoreCells(cells) {
     average += SHARES[d] * score;
     if (score < weakest) { weakest = score; weakestIndex = d; }
   }
-  const score = SCORE_RULES.averageWeight * average + SCORE_RULES.weakestWeight * weakest - SCORE_RULES.criticalPenalty * critical;
-  return { score, average, weakest, weakestIndex, critical, districtScores };
+  // Отставание районов от порога (расширение формулы; в ТЗ lagPenalty = 0).
+  let shortfall = 0;
+  if (SCORE_RULES.lagPenalty) for (let d = 0; d < N_DISTRICTS; d += 1) shortfall += Math.max(0, SCORE_RULES.districtTarget - districtScores[d]);
+  const score = SCORE_RULES.averageWeight * average + SCORE_RULES.weakestWeight * weakest - SCORE_RULES.criticalPenalty * critical - SCORE_RULES.lagPenalty * shortfall;
+  return { score, average, weakest, weakestIndex, critical, shortfall, districtScores };
 }
 
 // Применяет любой (в том числе неполный) набор решений. Валидность проверяет validate().
@@ -78,10 +81,10 @@ export function validate(decisions) {
   for (const decision of list) {
     const measure = getMeasure(decision.measureId);
     if (!measure) { errors.push(`Неизвестное мероприятие: ${decision.measureId}.`); continue; }
-    if (seen.has(measure.id)) errors.push(`${measure.id} «${measure.name}» выбрано повторно — каждое мероприятие можно взять только один раз.`);
+    if (seen.has(measure.id)) errors.push(`«${measure.name}» выбрано повторно — каждое мероприятие можно взять только один раз.`);
     seen.add(measure.id);
-    if (measure.scope === "district" && !getDistrict(decision.districtId)) errors.push(`Для ${measure.id} «${measure.name}» нужно выбрать район.`);
-    if (measure.scope === "city" && decision.districtId) errors.push(`${measure.id} «${measure.name}» — городская мера, район для неё не указывается.`);
+    if (measure.scope === "district" && !getDistrict(decision.districtId)) errors.push(`Для «${measure.name}» нужно выбрать район.`);
+    if (measure.scope === "city" && decision.districtId) errors.push(`«${measure.name}» — городская мера, район для неё не указывается.`);
   }
   for (const direction of DIRECTIONS) {
     const count = list.filter((decision) => getMeasure(decision.measureId)?.direction === direction.id).length;
@@ -90,8 +93,9 @@ export function validate(decisions) {
   for (const conflict of CONFLICTS) {
     const [a, b] = conflict.measures.map((id) => list.find((decision) => decision.measureId === id));
     if (!a || !b) continue;
-    if (!conflict.sameDistrict) errors.push(`${a.measureId} и ${b.measureId} несовместимы: ${conflict.reason}.`);
-    else if (a.districtId && a.districtId === b.districtId && getDistrict(a.districtId)) errors.push(`${a.measureId} и ${b.measureId} нельзя в одном районе (${getDistrict(a.districtId).name}): ${conflict.reason}.`);
+    const names = `«${getMeasure(a.measureId).name}» и «${getMeasure(b.measureId).name}»`;
+    if (!conflict.sameDistrict) errors.push(`${names} несовместимы: ${conflict.reason}.`);
+    else if (a.districtId && a.districtId === b.districtId && getDistrict(a.districtId)) errors.push(`${names} нельзя в одном районе (${getDistrict(a.districtId).name}): ${conflict.reason}.`);
   }
   const cost = costOf(list);
   if (cost > BUDGET) errors.push(`Бюджет превышен на ${cost - BUDGET} ед. (${cost} из ${BUDGET}).`);
@@ -99,7 +103,17 @@ export function validate(decisions) {
 }
 
 export const scoreOf = (decisions) => scoreCells(applyDecisions(decisions)).score;
-export const BASELINE = scoreCells(BASE_CELLS);
+export let BASELINE = null;
+
+// Производные таблицы модели: пересчитываются при загрузке и после каждого изменения настроек.
+function refreshModel() {
+  INDICATORS.forEach((indicator, k) => { WEIGHTS[k] = indicator.weight; });
+  for (const key of Object.keys(measureIndex)) delete measureIndex[key];
+  MEASURES.forEach((measure, index) => { measureIndex[measure.id] = index; });
+  BASELINE = scoreCells(BASE_CELLS);
+}
+refreshModel();
+onModelChange(refreshModel);
 
 // Вклад по Шепли: средний прирост Score от меры по всем порядкам добавления.
 // Сумма вкладов в точности равна изменению Score, включая синергии и штрафы.
@@ -165,6 +179,8 @@ export function evaluate(decisions) {
       baselineWeakest: round2(BASELINE.weakest),
       baselineWeakestDistrictId: DISTRICTS[BASELINE.weakestIndex].id,
       baselineCritical: BASELINE.critical,
+      shortfall: round2(result.shortfall),
+      baselineShortfall: round2(BASELINE.shortfall),
     },
     critical: criticalList(cells),
     baselineCritical: criticalList(BASE_CELLS),
@@ -209,26 +225,53 @@ export function robustness(decisions, runs = 400, seed = 2050) {
   return { p10: at(0.1), p50: at(0.5), p90: at(0.9), worst: round2(scores[0]), runs };
 }
 
-// Стресс-тест: событие бьёт по району. Если резерва хватает — ущерб ликвидирован за его счёт.
-// Если в районе (или по городу) уже работает профильная мера — удар вдвое слабее.
+// ---------- Городские события и страховка ----------
+// Профильная мера — из списка события, стоящая в его районе или действующая на весь город.
+export const eventMitigation = (event, decisions) => decisions.find((decision) => event.mitigatedBy.includes(decision.measureId) && (!decision.districtId || decision.districtId === event.districtId)) ?? null;
+
+// Стоимость ликвидации события для конкретного набора: профильная мера удешевляет её на costReduction.
+// Округляем вверх до целой единицы бюджета.
+export function liquidationCost(event, decisions) {
+  const mitigation = eventMitigation(event, decisions);
+  const cost = mitigation ? Math.ceil(event.responseCost * (1 - event.costReduction) - 1e-9) : event.responseCost;
+  return { cost, base: event.responseCost, mitigatedBy: mitigation?.measureId ?? null };
+}
+
+// Резерв, который нужно заложить под страховку. mode "one" — за 2 года случается одно событие (резерв —
+// самая дорогая ликвидация), "all" — готовы ко всем отмеченным сразу (резерв — сумма).
+export function requiredReserve(decisions, eventIds, mode = "one") {
+  const costs = EVENTS.filter((event) => eventIds.includes(event.id)).map((event) => liquidationCost(event, decisions).cost);
+  if (!costs.length) return 0;
+  return mode === "all" ? costs.reduce((sum, cost) => sum + cost, 0) : Math.max(...costs);
+}
+
+export function insuranceStatus(decisions, insurance) {
+  const required = requiredReserve(decisions, insurance?.events ?? [], insurance?.mode);
+  const reserve = BUDGET - costOf(decisions);
+  return { required, reserve, ok: reserve >= required, shortfall: Math.max(0, required - reserve) };
+}
+
+// Стресс-тест: каждое событие проверяется отдельно. Если резерва хватает на ликвидацию (с учётом
+// удешевления профильной мерой) — ущерба нет. Иначе удар по району, ослабленный профильной мерой.
 export function stressTest(decisions) {
   const cells = applyDecisions(decisions);
   const score = scoreCells(cells).score;
   const reserve = BUDGET - costOf(decisions);
   return EVENTS.map((event) => {
-    const mitigation = decisions.find((decision) => event.mitigatedBy.includes(decision.measureId) && (!decision.districtId || decision.districtId === event.districtId));
-    const factor = mitigation ? 0.5 : 1;
+    const liquidation = liquidationCost(event, decisions);
+    const factor = liquidation.mitigatedBy ? 1 - event.damageReduction : 1;
     const shocked = Float64Array.from(cells);
     const d = districtIndex[event.districtId];
     for (const [indicatorId, value] of Object.entries(event.shocks)) shocked[d * K + indicatorIndex[indicatorId]] += value * factor;
     const hitScore = scoreCells(shocked).score;
-    const covered = reserve >= event.responseCost;
+    const covered = reserve >= liquidation.cost;
     return {
       eventId: event.id,
       covered,
-      mitigatedBy: mitigation?.measureId ?? null,
-      responseCost: event.responseCost,
-      shortfall: Math.max(0, event.responseCost - reserve),
+      mitigatedBy: liquidation.mitigatedBy,
+      responseCost: liquidation.cost,
+      baseCost: liquidation.base,
+      shortfall: Math.max(0, liquidation.cost - reserve),
       scoreAfter: round2(covered ? score : hitScore),
       loss: round2(covered ? 0 : score - hitScore),
       lossIfIgnored: round2(score - hitScore),
