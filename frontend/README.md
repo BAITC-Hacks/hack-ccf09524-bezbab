@@ -1,32 +1,66 @@
-# React + TypeScript + Vite
+# Аким на 5 часов — BEZ BAB
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Фронтенд симулятора управления условной Астаной. React + TypeScript + Vite, Tailwind CSS v4 и lucide-react. Сохранены исходные типы, четыре района, показатели и бюджет 500 000 000 ₸ из ветки `front`.
 
-Currently, two official plugins are available:
+## Запуск
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Нужен Node.js 22.12+ (либо совместимая более новая версия).
 
-## React Compiler
+```sh
+cd frontend
+npm install
+npm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Откройте http://localhost:5173. `npm run build` собирает production-версию, `npm run preview` открывает сборку, `npm run lint` проверяет код, `npm test` проверяет модель и все 243 комбинации инициатив.
 
-## Expanding the Oxlint configuration
+## Возможности
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+- Обзор города, интерактивная схематическая карта, выбор района, пять показателей.
+- 15 инициатив: по три в пяти направлениях, можно выбрать ровно по одной.
+- Бюджет пересчитывается при выборе, замене и отмене. Недоступные по стоимости инициативы заблокированы.
+- Прогноз показателей и индекса меняется сразу после выбора.
+- Сценарий автоматически сохраняется в localStorage; некорректное сохранение безопасно игнорируется.
+- Результат, сильные стороны, риски, рекомендации, экспорт JSON и сброс с подтверждением.
+- Адаптивная версия для телефона, клавиатурное управление и модальные окна с управлением фокусом.
+
+## Локальный расчёт и AI
+
+По умолчанию используется **локальная детерминированная модель**, явно обозначенная в интерфейсе. Это не настоящий AI-анализ. Для подключения AI создайте `.env.local` на основе `.env.example`, укажите URL своего backend и перезапустите Vite. Ключ AI-провайдера должен оставаться на backend, его нельзя помещать в `VITE_*` или код браузера.
+
+Фронтенд отправляет POST JSON:
+
+```ts
+{ budget: { total: number, spent: number, currency: string },
+  districts: District[], decisions: Initiative[], projectedDistricts: District[] }
+```
+
+Ответ backend:
 
 ```json
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  "score": 67.9,
+  "summary": "Объяснение общего результата",
+  "strengths": ["Сильная сторона сценария"],
+  "risks": ["Риск и последствия"],
+  "recommendations": ["Рекомендация"]
 }
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+`score` должен быть конечным числом от 0 до 100. Остальные поля проверяются перед отображением. Запрос ограничен 30 секундами; при ошибке показаны сообщение, повторный запуск и явная кнопка локального расчёта. Backend на другом домене должен разрешать CORS для origin фронтенда. Backend обязан самостоятельно проверять стоимость решений, бюджет и допустимые ID: клиентская проверка служит для UX.
+
+## Модель
+
+Все цифры синтетические и не описывают реальную административную географию или прогноз города. Карта — схема четырёх районов исходного датасета.
+
+Инициатива повышает один показатель в своём районе на `gain`, а в остальных — на `round(gain × 0.35)`. Показатели ограничены 100. Районный индекс — среднее пяти показателей. Общегородской индекс — среднее районных индексов, взвешенное по населению, с округлением до одного знака. Исходный индекс 54.8. Неиспользованный бюджет не расходуется автоматически. Счётчик времени не ограничивает игру: название «5 часов» задаёт концепцию хакатона.
+
+## Основные файлы
+
+- `src/App.tsx` — навигация, состояние, обзор, выбор решений, результаты.
+- `src/components/CityMap.tsx` — интерактивная SVG-карта.
+- `src/data/initiatives.ts` — каталог решений, цены, эффекты, названия районов.
+- `src/lib/simulation.ts` — бюджет, модель, восстановление сценария и API-адаптер.
+- `src/data/mockCityData.ts`, `src/types/city.ts` — исходные данные и типы.
+- `src/App.css`, `src/index.css` — адаптивная тема.
+- `scripts/test-simulation.mjs` — регрессионная проверка модели.
