@@ -1,41 +1,62 @@
-# City map visualization template
+# Интерактивная карта города
 
-This folder contains a minimal visualisation scaffold for future city analytics.
+Эта папка содержит простой шаблон для будущей визуализации городских метрик.
 
-## Files
+## Что здесь есть
 
-- `city_map_template.py` — simple district map with optional overlays for sensors, schools, congestion points, etc.
+- карта по районам;
+- интерактивная HTML-визуализация без PNG;
+- слои для данных по воздуху, дорожному трафику и школам;
+- простая структура, в которую легко вставлять реальные данные.
 
-## How to run
+## Основной файл
+
+- `city_map_template.py` — интерактивная карта на Plotly.
+
+## Как запустить
 
 ```bash
 python data_collection/spatial/common/city_map_template.py
 ```
 
-The script creates an image under:
+Откроется HTML-файл в папке:
 
 ```text
-data_collection/spatial/common/output/district_city_map.png
+data_collection/spatial/common/output/city_map_interactive.html
 ```
 
-## Planned extension points
+Его можно открыть в браузере и масштабировать, приближать, смотреть hover-подсказки.
 
-- Replace the abstract district polygons with real GIS polygons or GeoJSON.
-- Replace the fake sensor list with real AQI, traffic, or weather data.
-- Add more point layers: roads, schools, hospitals, traffic cameras, intervention points.
-- Add a second view for heat maps or district-level score coloring.
+## Как добавить новые данные
 
-## Data model idea
-
-For each feature, keep a simple structure like:
+Логика выглядит просто: у каждого объекта есть
 
 ```python
 {
     "name": "AQ_01",
     "position": (x, y),
     "value": 72,
-    "layer": "air_quality",
+    "unit": "AQI",
 }
 ```
 
-This keeps the rendering logic independent from the source data and makes it easy to add CSV/JSON ingestion later.
+Для новых слоёв достаточно добавить функцию типа:
+
+```python
+def build_my_layer() -> list[dict]:
+    return [
+        {"name": "Road_1", "position": (2.5, 5.2), "value": 82},
+    ]
+```
+
+и затем добавить этот слой в `build_figure()`.
+
+## Что можно будет делать дальше
+
+- подключить реальный GeoJSON по районам;
+- рисовать данные с датчиков воздуха;
+- показывать перекрытие пробок по дорогам;
+- отображать школы, поликлиники, камеры, маршруты;
+- раскрашивать районы по баллам качества или по конкретному показателю.
+
+Это именно “карта-основа”, а не готовая система сбора данных.

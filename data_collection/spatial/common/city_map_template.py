@@ -1,23 +1,22 @@
-"""Simple template for district-level city map visualization.
+"""Interactive city map template for district-level analytics.
 
-This script draws a stylized city map divided into districts. It is intentionally
-simple and easy to extend:
-- district polygon layer
-- optional metric overlay (air quality / congestion / service density)
-- optional school/sensor markers
-- save to PNG for later use in dashboards or reports
+This script creates a lightweight, interactive city map in HTML using Plotly.
+It is intentionally simple and designed to be extended with real city data later:
+- district polygons
+- optional overlay for air quality / road congestion / service density
+- optional school and sensor markers
+- no PNG export; the output is an interactive HTML dashboard ready for browser use
 
-The goal is to keep the geometry and rendering logic straightforward so that
-future data ingestion can be plugged in without reworking the whole app.
+The code is deliberately simple so future data ingestion can be plugged in without
+reworking the entire visualisation layer.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
-import matplotlib.pyplot as plt
-from matplotlib import patches
+import plotly.graph_objects as go
 
 
 Point = Tuple[float, float]
@@ -25,13 +24,12 @@ Polygon = List[Point]
 
 
 def build_districts() -> Dict[str, Polygon]:
-    """Return a simple district map as polygons.
+    """Return a stylized city divided into districts.
 
-    The coordinates are intentionally abstract: they represent a stylized city,
-    not a precise GIS geometry. In the future these can be replaced by GeoJSON
-    polygons from a real city boundary layer.
+    These polygons are intentionally abstract. Later they can be replaced by
+    GeoJSON or real district boundaries without changing the rendering logic.
     """
-    districts = {
+    return {
         "Есиль": [
             (0.0, 0.0),
             (7.0, 0.0),
@@ -65,27 +63,22 @@ def build_districts() -> Dict[str, Polygon]:
             (12.0, 12.0),
         ],
     }
-    return districts
 
 
 def build_sensors() -> List[dict]:
-    """Return example air-quality sensor points.
-
-    Each sensor has a position, a value, and a label. Later this routine can be
-    replaced by a CSV or GeoJSON reader.
-    """
+    """Example air-quality sensors."""
     return [
-        {"name": "AQ_01", "position": (2.0, 2.5), "value": 72},
-        {"name": "AQ_02", "position": (4.5, 9.5), "value": 58},
-        {"name": "AQ_03", "position": (8.0, 2.5), "value": 80},
-        {"name": "AQ_04", "position": (10.2, 9.0), "value": 64},
-        {"name": "AQ_05", "position": (14.5, 8.0), "value": 71},
-        {"name": "AQ_06", "position": (15.5, 2.8), "value": 85},
+        {"name": "AQ_01", "position": (2.0, 2.5), "value": 72, "unit": "AQI"},
+        {"name": "AQ_02", "position": (4.5, 9.5), "value": 58, "unit": "AQI"},
+        {"name": "AQ_03", "position": (8.0, 2.5), "value": 80, "unit": "AQI"},
+        {"name": "AQ_04", "position": (10.2, 9.0), "value": 64, "unit": "AQI"},
+        {"name": "AQ_05", "position": (14.5, 8.0), "value": 71, "unit": "AQI"},
+        {"name": "AQ_06", "position": (15.5, 2.8), "value": 85, "unit": "AQI"},
     ]
 
 
 def build_schools() -> List[dict]:
-    """Return example schools or service points."""
+    """Example schools or service points."""
     return [
         {"name": "School_1", "position": (2.5, 4.0), "count": 18},
         {"name": "School_2", "position": (4.5, 10.0), "count": 12},
@@ -94,145 +87,219 @@ def build_schools() -> List[dict]:
     ]
 
 
-def draw_districts(
-    ax,
-    districts: Dict[str, Polygon],
+def build_traffic_points() -> List[dict]:
+    """Example congestion / road points."""
+    return [
+        {"name": "Road_1", "position": (2.5, 5.2), "value": 82, "unit": "traffic"},
+        {"name": "Road_2", "position": (6.8, 3.1), "value": 72, "unit": "traffic"},
+        {"name": "Road_3", "position": (8.8, 7.7), "value": 68, "unit": "traffic"},
+        {"name": "Road_4", "position": (12.8, 4.3), "value": 79, "unit": "traffic"},
+        {"name": "Road_5", "position": (14.3, 10.4), "value": 56, "unit": "traffic"},
+    ]
+
+
+def district_to_shape(district_name: str, polygon: Polygon, fill_color: str, metric_value: float | None = None) -> dict:
+    """Build a Plotly shape for a district polygon."""
+    text_value = f"{metric_value:.0f}" if metric_value is not None else ""
+    return {
+        "type": "path",
+        "path": " M " + " L ".join(f"{x} {y}" for x, y in polygon) + " Z",
+        "xref": "x",
+        "yref": "y",
+        "fillcolor": fill_color,
+        "line": {"color": "#334155", "width": 2},
+        "opacity": 0.7,
+        "label": district_name,
+        "customdata": [district_name, text_value],
+    }
+
+
+def build_figure(
     district_metrics: Dict[str, float] | None = None,
-    district_palette: Dict[str, str] | None = None,
-) -> None:
-    """Draw district polygons and optionally color them by a district metric."""
-    if district_palette is None:
-        district_palette = {
-            "Есиль": "#dbeafe",
-            "Алматы": "#bfdbfe",
-            "Сарыарка": "#c7d2fe",
-            "Байконур": "#e0e7ff",
-            "Нура": "#f3e8ff",
-        }
+    show_sensors: bool = True,
+    show_schools: bool = True,
+    show_traffic: bool = True,
+) -> go.Figure:
+    """Create an interactive HTML map with district overlays."""
+    districts = build_districts()
+    district_palette = {
+        "Есиль": "#dbeafe",
+        "Алматы": "#bfdbfe",
+        "Сарыарка": "#c7d2fe",
+        "Байконур": "#e0e7ff",
+        "Нура": "#f3e8ff",
+    }
+
+    fig = go.Figure()
 
     for district_name, polygon in districts.items():
-        poly = patches.Polygon(
-            polygon,
-            closed=True,
-            facecolor=district_palette.get(district_name, "#e5e7eb"),
-            edgecolor="#334155",
-            linewidth=1.5,
-            alpha=0.95,
-        )
-        ax.add_patch(poly)
-
-        # Optional district metric overlay with simple text label.
+        fill_color = district_palette.get(district_name, "#e5e7eb")
         if district_metrics and district_name in district_metrics:
-            centroid = (
-                sum(point[0] for point in polygon) / len(polygon),
-                sum(point[1] for point in polygon) / len(polygon),
+            metric = district_metrics[district_name]
+            # Simple quality-based color shading for district fill.
+            if metric >= 75:
+                fill_color = "#86efac"
+            elif metric >= 60:
+                fill_color = "#fcd34d"
+            elif metric >= 45:
+                fill_color = "#fbbf24"
+            else:
+                fill_color = "#fca5a5"
+
+        fig.add_shape(
+            type="path",
+            path=" M " + " L ".join(f"{x} {y}" for x, y in polygon) + " Z",
+            xref="x",
+            yref="y",
+            fillcolor=fill_color,
+            line={"color": "#334155", "width": 2},
+            opacity=0.8,
+            label={"text": district_name},
+        )
+
+        centroid_x = sum(x for x, _ in polygon) / len(polygon)
+        centroid_y = sum(y for _, y in polygon) / len(polygon)
+        if district_metrics and district_name in district_metrics:
+            fig.add_annotation(
+                x=centroid_x,
+                y=centroid_y,
+                text=f"{district_metrics[district_name]:.0f}",
+                showarrow=False,
+                font={"size": 12, "color": "#111827"},
+                bgcolor="rgba(255,255,255,0.7)",
+                bordercolor="rgba(0,0,0,0.1)",
+                borderwidth=1,
             )
-            ax.text(
-                centroid[0],
-                centroid[1],
-                f"{district_metrics[district_name]:.0f}",
-                ha="center",
-                va="center",
-                fontsize=10,
-                color="#0f172a",
-                fontweight="bold",
+
+        fig.add_annotation(
+            x=polygon[0][0] + 0.5,
+            y=polygon[0][1] + 0.5,
+            text=district_name,
+            showarrow=False,
+            font={"size": 11, "color": "#0f172a", "family": "Arial"},
+        )
+
+    if show_sensors:
+        sensors = build_sensors()
+        sensor_values = [item["value"] for item in sensors]
+        min_value = min(sensor_values)
+        max_value = max(sensor_values)
+
+        for sensor in sensors:
+            x, y = sensor["position"]
+            value = sensor["value"]
+            raw = (value - min_value) / (max_value - min_value + 1e-9)
+            color = "#ef4444" if raw < 0.45 else "#f59e0b" if raw < 0.75 else "#22c55e"
+            fig.add_trace(
+                go.Scatter(
+                    x=[x],
+                    y=[y],
+                    mode="markers+text",
+                    text=[sensor["name"]],
+                    textposition="top center",
+                    marker={
+                        "size": 16,
+                        "color": color,
+                        "line": {"color": "#1f2937", "width": 1},
+                    },
+                    hovertemplate=(
+                        f"<b>{sensor['name']}</b><br>"
+                        f"Value: {value}<br>"
+                        f"Unit: {sensor['unit']}<extra></extra>"
+                    ),
+                    showlegend=False,
+                )
             )
 
-        ax.text(
-            polygon[0][0] + 0.6,
-            polygon[0][1] + 0.6,
-            district_name,
-            fontsize=10,
-            color="#0f172a",
-            fontweight="bold",
-        )
+    if show_schools:
+        schools = build_schools()
+        for school in schools:
+            x, y = school["position"]
+            fig.add_trace(
+                go.Scatter(
+                    x=[x],
+                    y=[y],
+                    mode="markers+text",
+                    text=[school["name"]],
+                    textposition="top center",
+                    marker={
+                        "symbol": "square",
+                        "size": 14,
+                        "color": "#10b981",
+                        "line": {"color": "#064e3b", "width": 1},
+                    },
+                    hovertemplate=(
+                        f"<b>{school['name']}</b><br>"
+                        f"Count: {school['count']}<extra></extra>"
+                    ),
+                    showlegend=False,
+                )
+            )
 
-    ax.set_xlim(-1, 18)
-    ax.set_ylim(-1, 13)
-    ax.set_aspect("equal")
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_title("City district map template")
-    ax.set_frame_on(False)
+    if show_traffic:
+        traffic = build_traffic_points()
+        for point in traffic:
+            x, y = point["position"]
+            fig.add_trace(
+                go.Scatter(
+                    x=[x],
+                    y=[y],
+                    mode="markers",
+                    marker={
+                        "size": 12,
+                        "color": point["value"],
+                        "colorscale": [[0, "#22c55e"], [0.5, "#fbbf24"], [1, "#ef4444"]],
+                        "line": {"color": "#1f2937", "width": 1},
+                        "showscale": True,
+                        "colorbar": {"title": "Traffic"},
+                    },
+                    hovertemplate=(
+                        f"<b>{point['name']}</b><br>"
+                        f"Value: {point['value']}<br>"
+                        f"Unit: {point['unit']}<extra></extra>"
+                    ),
+                    showlegend=False,
+                )
+            )
+
+    fig.update_xaxes(range=[-1, 18], showgrid=False, zeroline=False, visible=False)
+    fig.update_yaxes(range=[-1, 13], showgrid=False, zeroline=False, visible=False)
+    fig.update_layout(
+        title="Interactive city map template",
+        template="plotly_white",
+        width=1100,
+        height=800,
+        margin={"l": 20, "r": 20, "t": 60, "b": 20},
+        dragmode="pan",
+        hovermode="closest",
+    )
+    return fig
 
 
-def draw_sensor_overlay(ax, sensors: Iterable[dict]) -> None:
-    """Plot sensors as colored circles sized by value."""
-    values = [item["value"] for item in sensors]
-    min_value = min(values)
-    max_value = max(values)
-
-    for sensor in sensors:
-        x, y = sensor["position"]
-        normalized = (sensor["value"] - min_value) / (max_value - min_value + 1e-9)
-        color = plt.cm.get_cmap("YlOrRd")(normalized)
-        ax.scatter(
-            x,
-            y,
-            s=120,
-            color=color,
-            edgecolors="#1f2937",
-            linewidth=0.7,
-            alpha=0.85,
-            zorder=5,
-        )
-        ax.text(x + 0.18, y + 0.18, sensor["name"], fontsize=8, color="#111827")
-
-
-def draw_school_overlay(ax, schools: Iterable[dict]) -> None:
-    """Plot schools or service points as markers."""
-    for school in schools:
-        x, y = school["position"]
-        ax.scatter(
-            x,
-            y,
-            marker="s",
-            s=90,
-            color="#10b981",
-            edgecolors="#064e3b",
-            linewidth=0.8,
-            zorder=6,
-        )
-        ax.text(x + 0.20, y + 0.20, school["name"], fontsize=8, color="#065f46")
-
-
-def save_map(
+def save_interactive_map(
     output_path: str | Path,
     district_metrics: Dict[str, float] | None = None,
     show_sensors: bool = True,
     show_schools: bool = True,
-    filename: str = "district_city_map.png",
+    show_traffic: bool = True,
 ) -> Path:
-    """Create and save a city map image.
-
-    output_path may be a directory or a full file path. The routine normalizes
-    both cases for convenience.
-    """
+    """Save the map as an interactive HTML file."""
     output_path = Path(output_path)
-    if output_path.suffix:
-        final_path = output_path
-    else:
-        final_path = output_path / filename
+    if output_path.suffix.lower() != ".html":
+        output_path = output_path / "city_map_interactive.html"
 
-    final_path.parent.mkdir(parents=True, exist_ok=True)
-
-    fig, ax = plt.subplots(figsize=(12, 9), dpi=160)
-    districts = build_districts()
-    draw_districts(ax, districts, district_metrics)
-
-    if show_sensors:
-        draw_sensor_overlay(ax, build_sensors())
-    if show_schools:
-        draw_school_overlay(ax, build_schools())
-
-    fig.tight_layout()
-    fig.savefig(final_path, bbox_inches="tight")
-    plt.close(fig)
-    return final_path
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig = build_figure(
+        district_metrics=district_metrics,
+        show_sensors=show_sensors,
+        show_schools=show_schools,
+        show_traffic=show_traffic,
+    )
+    fig.write_html(output_path, include_plotlyjs="cdn")
+    return output_path
 
 
 if __name__ == "__main__":
-    # Example district-level metadata. Replace them with your real scores later.
     district_metrics = {
         "Есиль": 78,
         "Алматы": 68,
@@ -241,10 +308,11 @@ if __name__ == "__main__":
         "Нура": 52,
     }
 
-    output = save_map(
+    output = save_interactive_map(
         output_path=Path(__file__).resolve().parent / "output",
         district_metrics=district_metrics,
         show_sensors=True,
         show_schools=True,
+        show_traffic=True,
     )
-    print(f"Saved map to: {output}")
+    print(f"Interactive map saved to: {output}")
