@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Compass, Minus, Plus } from "lucide-react";
 import { districtNames } from "../data/initiatives";
-import type { DistrictMetrics } from "../types/city";
+import { districtScore } from "../lib/simulation";
+import { round2 } from "../data/mockCityData";
 import type { projectDistricts } from "../lib/simulation";
-const average = (values: DistrictMetrics) =>
-  Math.round(Object.values(values).reduce((a, b) => a + b, 0) / 5);
 export function CityMap({
   active,
   onSelect,
@@ -36,9 +35,15 @@ export function CityMap({
     },
     {
       id: "yesil",
-      d: "M177 230L292 217 408 224 431 291 552 365 452 427 269 401 156 327Z",
-      x: 323,
+      d: "M292 239L408 237 431 291 552 365 452 427 300 401 285 327Z",
+      x: 390,
       y: 322,
+    },
+    {
+      id: "nura",
+      d: "M70 252L167 251 274 248 264 331 280 404 125 407 58 334Z",
+      x: 172,
+      y: 338,
     },
   ];
   return (
@@ -126,7 +131,7 @@ export function CityMap({
                 x={area.x - 44}
                 y={area.y + 5}
                 fill={active === area.id ? "#fff" : "#283b57"}
-                fontSize="13"
+                fontSize="12"
                 fontWeight="600"
               >
                 {districtNames[area.id]}
@@ -139,7 +144,9 @@ export function CityMap({
                 fontWeight="700"
                 textAnchor="middle"
               >
-                {average(projected.find((d) => d.id === area.id)!.metrics)}
+                {round2(
+                  districtScore(projected.find((d) => d.id === area.id)!),
+                )}
               </text>
             </g>
           ))}
@@ -176,7 +183,7 @@ export function CityMap({
         </g>
       </svg>
       <span className="map-caption">
-        <span className="live-dot" /> Астана · 4 условных района
+        <span className="live-dot" /> Астана · 5 условных районов
       </span>
       <div className="map-controls">
         <button

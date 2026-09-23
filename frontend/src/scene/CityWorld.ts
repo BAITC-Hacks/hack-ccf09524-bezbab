@@ -179,14 +179,14 @@ export class CityWorld {
     this.renderer.domElement.setAttribute("role", "img");
     host.appendChild(this.renderer.domElement);
     this.scene.background = new THREE.Color("#e8eff7");
-    this.scene.fog = new THREE.Fog("#e8eff7", 100, 220);
-    this.camera.position.set(62, 66, 78);
+    this.scene.fog = new THREE.Fog("#e8eff7", 220, 380);
+    this.camera.position.set(74, 94, 122);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, 0, 0);
+    this.controls.target.set(0, 0, 16);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.09;
     this.controls.minDistance = 22;
-    this.controls.maxDistance = 130;
+    this.controls.maxDistance = 190;
     this.controls.minPolarAngle = 0.22;
     this.controls.maxPolarAngle = Math.PI / 2.45;
     this.controls.enablePan = false;
@@ -264,8 +264,8 @@ export class CityWorld {
   }
   private buildBase() {
     const b = new Batches(this);
-    b.box(0, -1.1, 0, 76, 2, 68, "#c6d1d5");
-    b.box(0, -0.12, 0, 75, 0.22, 67, "#d7dfcc");
+    b.box(0, -1.1, 16, 76, 2, 100, "#c6d1d5");
+    b.box(0, -0.12, 16, 75, 0.22, 99, "#d7dfcc");
     b.box(0, 0.015, 0, 75, 0.04, 7, "#78bdc9");
     // Pale embankments, two bridges and a waterfront promenade.
     b.box(0, 0.06, -4.1, 75, 0.2, 1.1, "#ede9db");
@@ -278,6 +278,7 @@ export class CityWorld {
     }
     for (let x = -32; x < 34; x += 4)
       b.box(x, 0.05, 0, 1.3, 0.01, 0.08, "#a3d5dc");
+    b.box(-19, 0.08, 33, 2.9, 0.12, 8, "#72828b");
     const buildingColors = [
       "#dbe2df",
       "#e7dccc",
@@ -418,7 +419,7 @@ export class CityWorld {
   }
   setSelection(selection: Initiative[]) {
     const key = selection
-      .map((i) => i.id)
+      .map((i) => `${i.id}:${i.district || "city"}`)
       .sort()
       .join(",");
     if (key === this.currentKey) return;
@@ -436,169 +437,143 @@ export class CityWorld {
       const b = new Batches(this);
       const x = d.x;
       const z = d.z;
-      if (item.category === "greenery") {
-        if (item.id === "g1")
-          for (const dx of [-12, -6, 6, 12])
-            for (const dz of [-10, 2, 10])
-              b.tree(x + dx + 1.7, z + dz, 0.85, "#479467");
-        if (item.id === "g2") {
-          b.box(x - 5.7, 0.14, z + 6.4, 6.5, 0.2, 6.3, "#90b986");
-          b.box(x - 5.7, 0.26, z + 6.4, 1, 0.05, 6.2, "#eadcba");
-          b.box(x - 5.7, 0.27, z + 6.4, 6.3, 0.05, 0.8, "#eadcba");
-          for (const dx of [-8, -3.5])
-            for (const dz of [4.2, 8.4]) b.tree(x + dx, z + dz, 1, "#478c5d");
-          b.shape(
-            "cylinder",
-            x - 5.7,
-            0.5,
-            z + 6.4,
-            1.05,
-            0.4,
-            1.05,
-            "#dce7dd",
-          );
-          b.shape(
-            "cylinder",
-            x - 5.7,
-            0.74,
-            z + 6.4,
-            0.78,
-            0.08,
-            0.78,
-            "#65b9d2",
-          );
+
+      if (item.id === "M1") {
+        b.box(x + 0.9, 0.16, z, 0.62, 0.04, 23, "#548fd8");
+        for (const dz of [-7, 7]) {
+          b.box(x + 2.4, 0.6, z + dz, 0.15, 1.2, 2.2, "#a4c8de");
+          b.box(x + 2.8, 1.35, z + dz, 1.2, 0.16, 2.4, "#3874be");
         }
-        if (item.id === "g3")
-          for (let n = 0; n < 14; n++) {
-            b.tree(x - 14 + n * 2.15, z + 11, 1, "#418963");
-            b.tree(x - 14 + n * 2.15, z - 11, 0.85, "#5b9b68");
-          }
+        const bus = this.vehicle("#3159db", true);
+        this.scene.add(bus);
+        this.busGroups.push(bus);
+        this.cars.push({ group: bus, x, z, phase: 0.35, bus: true });
       }
-      if (item.category === "transport") {
-        if (item.id === "t1")
-          for (const dx of [-2.1, 2.1])
-            for (const dz of [-3, 1]) {
-              b.box(x + dx, 1.2, z + dz, 0.13, 2.4, 0.13, "#43596a");
-              b.box(x + dx, 2.45, z + dz, 0.45, 0.85, 0.28, "#334756");
-              for (let k = 0; k < 3; k++)
-                b.shape(
-                  "leaf",
-                  x + dx,
-                  2.18 + k * 0.24,
-                  z + dz + 0.17,
-                  0.12,
-                  0.12,
-                  0.07,
-                  k === 0 ? "#7bde88" : "#694e4e",
-                );
-            }
-        if (item.id === "t3") {
-          b.box(x + 0.9, 0.16, z, 0.62, 0.04, 23, "#548fd8");
-          for (const dz of [-7, 7]) {
-            b.box(x + 2.4, 0.6, z + dz, 0.15, 1.2, 2.2, "#a4c8de");
-            b.box(x + 2.8, 1.35, z + dz, 1.2, 0.16, 2.4, "#3874be");
-          }
-        }
-        if (item.id === "t2" || item.id === "t3") {
-          const bus = this.vehicle("#3159db", true);
-          this.scene.add(bus);
-          this.busGroups.push(bus);
-          this.cars.push({ group: bus, x, z, phase: 0.35, bus: true });
-        }
-      }
-      if (item.category === "social") {
-        if (item.id === "s1") {
-          b.box(x + 5.8, 0.2, z + 6, 5, 0.2, 4, "#c99e72");
-          b.box(x + 4, 0.38, z + 5, 1.7, 0.45, 1.2, "#6ca4c8", false, 0.12);
-          b.box(x + 7, 0.65, z + 6, 1.8, 0.22, 0.6, "#ddb368");
-          for (const dx of [3.6, 8])
-            b.box(x + dx, 0.5, z + 8, 1.2, 0.25, 0.5, "#768ca1");
-        } else {
-          const hospital = item.id === "s3";
-          b.box(
-            x + 5.7,
-            1.5,
-            z + 6,
-            5.5,
-            3,
-            4.7,
-            hospital ? "#f0ece3" : "#c7b5d5",
-            true,
-          );
-          b.box(
-            x + 5.7,
-            3.1,
-            z + 6,
-            5.8,
-            0.2,
-            5,
-            hospital ? "#58a8bd" : "#9c7bbc",
-          );
-          b.box(x + 5.7, 0.8, z + 8.5, 1.3, 1.6, 0.2, "#658fb6");
-          if (hospital) {
-            b.box(x + 5.7, 2.4, z + 8.45, 1.1, 0.27, 0.12, "#d56369");
-            b.box(x + 5.7, 2.4, z + 8.46, 0.27, 1.1, 0.13, "#d56369");
-          } else {
-            b.box(x + 3.5, 1.7, z + 8.5, 0.25, 3, 0.25, "#ddd7a7");
-            b.box(x + 3.85, 2.8, z + 8.5, 0.7, 0.45, 0.1, "#42a8c8");
-          }
-        }
-      }
-      if (item.category === "safety") {
-        if (item.id === "b1" || item.id === "b3")
-          for (let n = -10; n <= 10; n += 4) b.lamp(x + 2.2, z + n);
-        if (item.id === "b2" || item.id === "b3") {
-          for (let n = 0; n < 7; n++)
-            b.box(x - 1.3 + n * 0.43, 0.175, z - 6, 0.21, 0.02, 1.8, "#f8f2d9");
-          for (const dx of [-2.1, 2.1]) {
-            b.box(x + dx, 0.9, z - 6, 0.1, 1.8, 0.1, "#647a8a");
-            b.box(x + dx, 1.7, z - 6, 0.6, 0.65, 0.12, "#3970c1");
-          }
-          b.box(x + 2.7, 0.55, z - 6, 0.15, 0.8, 4, "#e1c172");
-        }
-        if (item.id === "b3") {
-          b.box(x - 3, 1, z + 9, 2, 2, 2, "#c6d8e4");
-          b.box(x - 3, 2.1, z + 9, 2.2, 0.2, 2.2, "#546ca4");
-        }
-      }
-      if (item.category === "service") {
-        if (item.id === "c1")
-          for (const dx of [-12, 12])
-            for (let n = 0; n < 3; n++) {
-              b.box(
-                x + dx + n * 0.65,
-                0.5,
-                z + 1.8,
-                0.52,
-                0.8,
-                0.65,
-                ["#408cb4", "#e3b850", "#62a478"][n],
-              );
-              b.box(
-                x + dx + n * 0.65,
-                0.94,
-                z + 1.8,
-                0.56,
+      if (item.id === "M2")
+        for (const dx of [-2.1, 2.1])
+          for (const dz of [-3, 1]) {
+            b.box(x + dx, 1.2, z + dz, 0.13, 2.4, 0.13, "#43596a");
+            b.box(x + dx, 2.45, z + dz, 0.45, 0.85, 0.28, "#334756");
+            for (let k = 0; k < 3; k++)
+              b.shape(
+                "leaf",
+                x + dx,
+                2.18 + k * 0.24,
+                z + dz + 0.17,
                 0.12,
-                0.7,
-                "#d5dfe4",
+                0.12,
+                0.07,
+                k === 0 ? "#7bde88" : "#694e4e",
               );
-            }
-        if (item.id === "c2") {
-          b.box(x - 6, 1, z + 9, 3.3, 1.8, 1.8, "#a2c9dc", true);
-          b.box(x - 6, 2, z + 9, 3.5, 0.18, 2, "#397db8");
-          b.box(x - 6, 1.5, z + 10, 0.9, 0.4, 0.1, "#3c73da");
-        }
-        if (item.id === "c3") {
-          b.box(x - 6, 1, z + 9, 3, 2, 2, "#a8c2d1", true);
-          b.shape("cylinder", x - 6, 3, z + 9, 0.08, 2, 0.08, "#647889");
-          b.shape("leaf", x - 6, 4, z + 9, 0.45, 0.18, 0.45, "#75c7d5");
-          for (const dx of [-2, 2]) {
-            b.box(x + dx, 1.5, z - 2, 0.08, 3, 0.08, "#6b859b");
-            b.box(x + dx, 3, z - 2, 0.35, 0.2, 0.5, "#498fac");
           }
-          b.box(x - 9, 0.5, z + 9, 0.9, 0.7, 1.5, "#e1b765");
+      if (item.id === "M3") {
+        for (const dz of [-9, -3, 3, 9])
+          b.box(x + 2.9, 1.7, z + dz, 0.45, 3.4, 0.55, "#b1c1cf");
+        b.box(x + 2.9, 3.5, z, 1.6, 0.3, 24, "#c0cbd5");
+        for (const dx of [2.4, 3.4])
+          b.box(x + dx, 3.7, z, 0.09, 0.12, 24, "#637d95");
+        for (const dz of [-1.6, 0, 1.6]) {
+          b.box(x + 2.9, 4.12, z + dz, 1, 0.8, 1.5, "#3975c3");
+          b.box(x + 2.9, 4.3, z + dz, 1.05, 0.3, 1.25, "#a4d5e7");
         }
+        b.box(x + 4.1, 3.6, z + 7, 1.2, 0.25, 4, "#d3e0e6");
+        b.box(x + 4.1, 5.2, z + 7, 1.5, 0.2, 4.3, "#6498b5");
+      }
+      if (item.id === "M4") {
+        b.box(x - 5.7, 0.14, z + 6.4, 6.5, 0.2, 6.3, "#90b986");
+        b.box(x - 5.7, 0.26, z + 6.4, 1, 0.05, 6.2, "#eadcba");
+        b.box(x - 5.7, 0.27, z + 6.4, 6.3, 0.05, 0.8, "#eadcba");
+        for (const dx of [-8, -3.5])
+          for (const dz of [4.2, 8.4]) b.tree(x + dx, z + dz, 1, "#478c5d");
+        b.shape("cylinder", x - 5.7, 0.5, z + 6.4, 1.05, 0.4, 1.05, "#dce7dd");
+        b.shape(
+          "cylinder",
+          x - 5.7,
+          0.74,
+          z + 6.4,
+          0.78,
+          0.08,
+          0.78,
+          "#65b9d2",
+        );
+      }
+      if (item.id === "M5") {
+        b.box(x - 13, 0.9, z + 1.8, 2, 1.8, 1.8, "#aac9b7");
+        b.box(x - 13, 1.9, z + 1.8, 2.2, 0.2, 2, "#4f9684");
+        for (const dx of [-13.5, -12.7])
+          b.shape("cylinder", x + dx, 1.3, z + 2.9, 0.23, 2.6, 0.23, "#81b1b8");
+        b.tree(x - 14.4, z + 3, 0.6, "#489277");
+      }
+      if (item.id === "M6")
+        for (let n = 0; n < 14; n++) {
+          b.tree(x - 14 + n * 2.15, z + 11, 0.85, "#418963");
+          b.tree(x - 14 + n * 2.15, z - 11, 0.85, "#5b9b68");
+        }
+      if (item.id === "M7") {
+        b.box(x - 6, 1.5, z + 6, 5.5, 3, 4.7, "#e9cba1", true);
+        b.box(x - 6, 3.1, z + 6, 5.8, 0.2, 5, "#cb9a65");
+        b.box(x - 3.6, 0.8, z + 9, 2.5, 1.6, 2, "#ebd9a4", true);
+        b.box(x - 3.6, 1.7, z + 9, 2.7, 0.2, 2.2, "#70a9ab");
+        b.box(x - 8.5, 1.6, z + 8.5, 0.1, 3.2, 0.1, "#748a9d");
+        b.box(x - 8.1, 2.9, z + 8.5, 0.7, 0.45, 0.1, "#42a8c8");
+      }
+      if (item.id === "M8") {
+        b.box(x + 5.7, 1.5, z + 6, 5.5, 3, 4.7, "#f0ece3", true);
+        b.box(x + 5.7, 3.1, z + 6, 5.8, 0.2, 5, "#58a8bd");
+        b.box(x + 5.7, 0.8, z + 8.5, 1.3, 1.6, 0.2, "#658fb6");
+        b.box(x + 5.7, 2.4, z + 8.45, 1.1, 0.27, 0.12, "#d56369");
+        b.box(x + 5.7, 2.4, z + 8.46, 0.27, 1.1, 0.13, "#d56369");
+      }
+      if (item.id === "M9") {
+        b.box(x + 6, 0.2, z + 10.4, 4.8, 0.2, 2.2, "#6ea992");
+        b.box(x + 6, 0.32, z + 10.4, 0.08, 0.02, 2.1, "#f3eee0");
+        for (const dx of [3.7, 8.3]) {
+          b.box(x + dx, 0.7, z + 10.4, 0.12, 0.1, 1.5, "#e7e9e7");
+          for (const dz of [9.7, 11.1])
+            b.box(x + dx, 0.5, z + dz, 0.12, 0.7, 0.12, "#e7e9e7");
+        }
+      }
+      if (item.id === "M10")
+        for (let n = -10; n <= 10; n += 4) {
+          b.lamp(x - 2.2, z + n);
+          b.box(x - 2.4, 2.65, z + n, 0.45, 0.18, 0.2, "#e9eff4");
+        }
+      if (item.id === "M11") {
+        for (let n = 0; n < 7; n++)
+          b.box(x - 1.3 + n * 0.43, 0.175, z - 6, 0.21, 0.02, 1.8, "#f8f2d9");
+        for (const dx of [-2.1, 2.1]) {
+          b.box(x + dx, 0.9, z - 6, 0.1, 1.8, 0.1, "#647a8a");
+          b.box(x + dx, 1.7, z - 6, 0.6, 0.65, 0.12, "#3970c1");
+        }
+        b.box(x + 2.7, 0.55, z - 6, 0.15, 0.8, 4, "#e1c172");
+      }
+      if (item.id === "M12") {
+        b.box(x + 13, 1, z + 1.8, 1.2, 2, 0.5, "#819bbd");
+        b.box(x + 13, 1.2, z + 2.08, 0.9, 1.1, 0.08, "#77c7dc");
+        b.box(x + 13, 0.25, z + 1.8, 1.7, 0.3, 0.8, "#c3d0df");
+      }
+      if (item.id === "M13") {
+        b.box(x - 13, 0.9, z + 1.8, 2.2, 1.8, 1.8, "#a2bfce");
+        b.box(x - 13, 1.9, z + 1.8, 2.5, 0.2, 2, "#6797b9");
+        for (const dz of [2.3, 2.8])
+          b.box(
+            x - 8,
+            0.24,
+            z + dz,
+            8,
+            0.2,
+            0.18,
+            dz === 2.3 ? "#c88d6e" : "#649fbe",
+          );
+        for (const dx of [-10, -6])
+          b.shape("cylinder", x + dx, 0.25, z + 2.5, 0.4, 0.15, 0.4, "#9daeb5");
+      }
+      if (item.id === "M14") {
+        b.box(x - 3, 1, z + 10, 2, 2, 1.8, "#d3c29f", true);
+        b.box(x - 3, 2.1, z + 10, 2.3, 0.2, 2, "#dfaa5d");
+        b.shape("cylinder", x - 3, 2.8, z + 10, 0.07, 1.4, 0.07, "#7f94aa");
+        b.box(x - 6, 0.6, z + 9.8, 0.9, 0.8, 1.7, "#e5b76f");
+        b.box(x - 6, 1.05, z + 9.4, 0.7, 0.3, 0.65, "#adcbdc");
       }
       const group = b.build();
       group.userData.initiativeId = item.id;

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowRight,
   Check,
   Compass,
   Minus,
@@ -11,30 +10,17 @@ import {
   RotateCcw,
   RotateCw,
   Sun,
-  Bus,
-  Leaf,
-  Users,
-  ShieldCheck,
-  Building2,
 } from "lucide-react";
 import { CityWorld } from "../scene/CityWorld";
 import { visualDescriptions } from "../scene/cityPlan";
-import { categories, districtNames, initiatives } from "../data/initiatives";
+import { categories, districtNames } from "../data/initiatives";
 import type { Initiative } from "../data/initiatives";
-import type { MetricKey } from "../types/city";
-import { cityBudget, districts } from "../data/mockCityData";
-import { projectDistricts, spentTotal } from "../lib/simulation";
+import DecisionPanel from "./DecisionPanel";
+import { IndicatorDetails } from "./DatasetDetails";
+import { districts } from "../data/mockCityData";
+import { projectDistricts } from "../lib/simulation";
 import { CityMap } from "./CityMap";
 import "./City3D.css";
-const icons = {
-  transport: Bus,
-  greenery: Leaf,
-  social: Users,
-  safety: ShieldCheck,
-  service: Building2,
-};
-const million = (value: number) =>
-  new Intl.NumberFormat("ru-RU").format(value / 1000000);
 type Props = {
   selection: Initiative[];
   onChoose: (item: Initiative) => void;
@@ -60,7 +46,6 @@ export default function City3D({
   const [motion, setMotion] = useState(
     () => !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
-  const [category, setCategory] = useState<MetricKey>("transport");
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
@@ -101,13 +86,13 @@ export default function City3D({
   useEffect(() => {
     world.current?.focus(activeDistrict, false);
   }, [activeDistrict]);
-  const spent = spentTotal(selection);
-  const remaining = cityBudget.total - spent;
   const projected = projectDistricts(selection);
   const shownDistrict = (before ? districts : projected).find(
     (d) => d.id === activeDistrict,
   )!;
-  const localProjects = selection.filter((i) => i.district === activeDistrict);
+  const localProjects = selection.filter(
+    (i) => i.scope === "city" || i.district === activeDistrict,
+  );
   function selectDistrict(id: string) {
     onSelect(id);
     world.current?.focus(id);
@@ -115,7 +100,7 @@ export default function City3D({
   function choose(item: Initiative) {
     onChoose(item);
     setBefore(false);
-    selectDistrict(item.district);
+    if (item.district) selectDistrict(item.district);
   }
   return (
     <section className="city-experience" aria-label="Интерактивный город">
@@ -247,7 +232,9 @@ export default function City3D({
               <span className="district-tab-dot" />
               {name}
               <span>
-                {selection.filter((i) => i.district === id).length || "—"}
+                {selection.filter(
+                  (i) => i.scope === "city" || i.district === id,
+                ).length || "—"}
               </span>
             </button>
           ))}
@@ -281,6 +268,7 @@ export default function City3D({
               </div>
             ))}
           </div>
+          <IndicatorDetails district={shownDistrict} />
           <div className="city-change-list" aria-live="polite">
             {before ? (
               <p>
@@ -306,110 +294,18 @@ export default function City3D({
         </div>
         <p className="city-model-note">
           Схематическая модель: расположение кварталов условное. Объекты
-          появляются в районе проекта; влияние на показатели остальных районов
-          учитывается в расчёте.
+          появляются в выбранном районе, а городские меры — во всех пяти.
+          Показатели рассчитаны на конец восьмого квартала.
         </p>
       </div>
-      <aside className="city-project-panel">
-        <div className="city-project-intro">
-          <span className="eyebrow">ОТ ИДЕИ К ПЕРЕМЕНАМ</span>
-          <h2>Меняйте город.</h2>
-          <p>Выберите проект — и он появится в своём районе.</p>
-        </div>
-        <div className="city-wallet">
-          <div>
-            <span>Доступный бюджет</span>
-            <strong>
-              {million(remaining)} <small>млн ₸</small>
-            </strong>
-          </div>
-          <span>{selection.length}/5</span>
-          <progress
-            max={cityBudget.total}
-            value={spent}
-            aria-label="Распределённый бюджет"
-          />
-        </div>
-        <div
-          className="city-category-tabs"
-          role="group"
-          aria-label="Направления развития"
-        >
-          {categories.map((cat) => {
-            const Icon = icons[cat.key];
-            return (
-              <button
-                key={cat.key}
-                aria-pressed={category === cat.key}
-                aria-label={cat.label}
-                title={cat.label}
-                onClick={() => setCategory(cat.key)}
-              >
-                <Icon size={20} />
-                {selection.some((i) => i.category === cat.key) && <i />}
-              </button>
-            );
-          })}
-        </div>
-        <div className="city-project-label">
-          <h3>{categories.find((c) => c.key === category)!.label}</h3>
-          <span>Один проект</span>
-        </div>
-        <div className="city-options">
-          {initiatives
-            .filter((i) => i.category === category)
-            .map((item) => {
-              const selected = selection.some((i) => i.id === item.id);
-              const refunded =
-                selection.find((i) => i.category === category)?.cost || 0;
-              const affordable = item.cost <= remaining + refunded;
-              return (
-                <button
-                  className={`city-option ${selected ? "selected" : ""}`}
-                  key={item.id}
-                  disabled={busy || (!selected && !affordable)}
-                  aria-pressed={selected}
-                  onClick={() => choose(item)}
-                >
-                  <div className="city-option-top">
-                    <span>{districtNames[item.district]}</span>
-                    <i>{selected && <Check size={13} />}</i>
-                  </div>
-                  <strong>{item.title}</strong>
-                  <p>{item.description}</p>
-                  <div className="city-option-bottom">
-                    <b>{million(item.cost)} млн ₸</b>
-                    <span>
-                      {!affordable
-                        ? "Не хватает бюджета"
-                        : selected
-                          ? "Выбрано · отменить"
-                          : "Добавить в город"}{" "}
-                      {!selected && affordable && <Plus size={13} />}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-        </div>
-        <p className="city-selection-hint">
-          По одному проекту в каждом направлении. Новый выбор заменяет
-          предыдущий.
-        </p>
-        <button
-          className="button city-analyze"
-          disabled={selection.length !== 5 || busy}
-          onClick={onAnalyze}
-        >
-          {busy ? "Анализируем…" : "Оценить мой город"}
-          <ArrowRight size={18} />
-        </button>
-        {selection.length !== 5 && (
-          <p className="city-analyze-hint">
-            Выбрано {selection.length} из 5 направлений
-          </p>
-        )}
-      </aside>
+      <DecisionPanel
+        selection={selection}
+        onChoose={choose}
+        activeDistrict={activeDistrict}
+        onSelect={selectDistrict}
+        busy={busy}
+        onAnalyze={onAnalyze}
+      />
     </section>
   );
 }

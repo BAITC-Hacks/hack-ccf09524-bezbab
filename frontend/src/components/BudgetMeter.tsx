@@ -1,8 +1,8 @@
-﻿import { Wallet, TriangleAlert } from 'lucide-react';
+import { Wallet, TriangleAlert } from 'lucide-react';
 import type { CityBudget } from '../types/city';
 
 function formatMoney(value: number, currency: string) {
-  return `${(value / 1000000).toFixed(1)} mln ${currency}`;
+  return `${new Intl.NumberFormat("ru-RU").format(value)} ${currency}`;
 }
 
 export function BudgetMeter({ budget }: { budget: CityBudget }) {

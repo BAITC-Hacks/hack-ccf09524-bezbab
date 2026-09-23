@@ -24,10 +24,11 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { cityBudget, districts } from "./data/mockCityData";
-import { categories, districtNames, initiatives } from "./data/initiatives";
+import { cityBudget, districts, round2 } from "./data/mockCityData";
+import { categories, districtNames } from "./data/initiatives";
 import type { Initiative } from "./data/initiatives";
-import type { MetricKey } from "./types/city";
+import DecisionPanel from "./components/DecisionPanel";
+import { IndicatorDetails, ScoreDetails } from "./components/DatasetDetails";
 import {
   analyzeScenario,
   localAnalysis,
@@ -36,6 +37,10 @@ import {
   restoreSelection,
   selectInitiative,
   spentTotal,
+  storageKey,
+  selectionError,
+  districtScore,
+  calculateScenario,
 } from "./lib/simulation";
 import type { Analysis } from "./lib/simulation";
 import "./App.css";
@@ -48,17 +53,12 @@ const icons = {
   safety: ShieldCheck,
   service: Building2,
 };
-const money = (value: number) =>
-  new Intl.NumberFormat("ru-RU").format(value / 1000000);
-const average = (values: import("./types/city").DistrictMetrics) =>
-  Math.round(Object.values(values).reduce((a, b) => a + b, 0) / 5);
-
+const money = (value: number) => new Intl.NumberFormat("ru-RU").format(value);
 export default function App() {
   const [selection, setSelection] = useState<Initiative[]>(restoreSelection);
   const [page, setPage] = useState<
     "overview" | "city" | "decisions" | "result"
   >("overview");
-  const [category, setCategory] = useState<MetricKey>("transport");
   const [activeDistrict, setActiveDistrict] = useState("yesil");
   const [result, setResult] = useState<Analysis | null>(null);
   const [busy, setBusy] = useState(false);
@@ -71,13 +71,19 @@ export default function App() {
   const projected = projectDistricts(selection);
   const baseScore = qualityScore(districts);
   const forecast = qualityScore(projected);
+  const complete = calculateScenario(selection).valid;
   const active = projected.find((d) => d.id === activeDistrict)!;
   function commitSelection(next: Initiative[]) {
     setSelection(next);
     try {
       localStorage.setItem(
-        "akim-scenario-v1",
-        JSON.stringify(next.map((i) => i.id)),
+        storageKey,
+        JSON.stringify(
+          next.map((i) => ({
+            id: i.id,
+            ...(i.district ? { district: i.district } : {}),
+          })),
+        ),
       );
       setStorageWarning(false);
     } catch {
@@ -92,6 +98,11 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [page]);
   function choose(item: Initiative) {
+    const reason = selectionError(selection, item);
+    if (reason) {
+      setError(reason);
+      return;
+    }
     commitSelection(selectInitiative(selection, item));
     setResult(null);
     setError("");
@@ -116,7 +127,11 @@ export default function App() {
             team: "BEZ BAB",
             budget: cityBudget.total,
             spent,
-            selection,
+            selection: selection.map((i) => ({
+              id: i.id,
+              ...(i.district ? { district: i.district } : {}),
+            })),
+            calculation: calculateScenario(selection),
             result,
           },
           null,
@@ -235,10 +250,10 @@ export default function App() {
                 </div>
                 <div className="hero-budget-value">
                   {money(cityBudget.total - spent)}
-                  <span>млн ₸</span>
+                  <span>у. е.</span>
                 </div>
                 <p>
-                  Из 500 млн ₸ городского бюджета.
+                  Из 100 у. е. городского бюджета.
                   <br />
                   Распорядитесь ими с пользой.
                 </p>
@@ -248,7 +263,7 @@ export default function App() {
                   />
                 </div>
                 <div className="hero-budget-meta">
-                  <span>Распределено {money(spent)} млн ₸</span>
+                  <span>Распределено {money(spent)} у. е.</span>
                   <span>{selection.length}/5 решений</span>
                 </div>
                 <button
@@ -285,7 +300,7 @@ export default function App() {
                   {page === "city"
                     ? "Исследуйте районы, выбирайте проекты и наблюдайте, как меняется город."
                     : page === "decisions"
-                      ? "Выберите по одной инициативе в каждом направлении. Бюджет — 500 млн ₸."
+                      ? "Выберите ровно 5 мер, до двух в одном направлении. Бюджет — 100 у. е.."
                       : "Результат, сильные стороны и возможности для следующего шага."}
                 </p>
               </div>
@@ -316,6 +331,16 @@ export default function App() {
           {page === "city" && error && (
             <div className="notice" role="alert">
               {error}
+              <button
+                className="button secondary"
+                disabled={!complete}
+                onClick={() => {
+                  setResult(localAnalysis(selection));
+                  setPage("result");
+                }}
+              >
+                Локальное объяснение
+              </button>
             </div>
           )}
           {storageWarning && (
@@ -331,7 +356,7 @@ export default function App() {
                 <Wallet size={18} />
               </div>
               <div className="stat-number">
-                500 <span>млн ₸</span>
+                100 <span>у. е.</span>
               </div>
               <div className="stat-foot">Единый старт для каждой команды</div>
             </section>
@@ -341,7 +366,7 @@ export default function App() {
                 <span className="tiny-dot" />
               </div>
               <div className="stat-number green">
-                {money(cityBudget.total - spent)} <span>млн ₸</span>
+                {money(cityBudget.total - spent)} <span>у. е.</span>
               </div>
               <div className="budget-track">
                 <span
@@ -349,7 +374,7 @@ export default function App() {
                 />
               </div>
               <div className="stat-foot">
-                Распределено {money(spent)} из 500 млн ₸
+                Распределено {money(spent)} из 100 у. е.
               </div>
             </section>
             <section className="stat-card">
@@ -358,15 +383,17 @@ export default function App() {
                 <Leaf size={18} />
               </div>
               <div className="stat-number">
-                {forecast}
+                {selection.length === 0 ? baseScore : complete ? forecast : "—"}
                 <span> / 100</span>
-                {selection.length > 0 && (
-                  <b className="growth">+{(forecast - baseScore).toFixed(1)}</b>
+                {complete && (
+                  <b className="growth">+{(forecast - baseScore).toFixed(2)}</b>
                 )}
               </div>
               <div className="stat-foot">
                 {selection.length
-                  ? "Прогноз модели по вашим решениям"
+                  ? complete
+                    ? "Score по формуле датасета"
+                    : "Score будет рассчитан после 5 решений"
                   : "Astana Quality of Life Score"}
               </div>
             </section>
@@ -379,19 +406,17 @@ export default function App() {
                 {selection.length} <span>из 5 решений</span>
               </div>
               <div className="progress-steps">
-                {categories.map((c) => (
+                {Array.from({ length: 5 }, (_, index) => (
                   <span
-                    key={c.key}
-                    className={
-                      selection.some((i) => i.category === c.key) ? "done" : ""
-                    }
+                    key={index}
+                    className={index < selection.length ? "done" : ""}
                   />
                 ))}
               </div>
               <div className="stat-foot">
                 {selection.length === 5
                   ? "Всё готово для анализа сценария"
-                  : "Все направления одинаково важны"}
+                  : "Не более двух мер одного направления"}
               </div>
             </section>
           </div>
@@ -433,15 +458,13 @@ export default function App() {
                       <h2>Район {districtNames[active.id]}</h2>
                     </div>
                     <span className="district-index">
-                      {average(active.metrics)}
+                      {round2(districtScore(active))}
                     </span>
                   </div>
                   <div className="population">
                     <Users size={15} />
-                    {new Intl.NumberFormat("ru-RU").format(
-                      active.population,
-                    )}{" "}
-                    жителей<span>Условные данные</span>
+                    {Math.round(active.populationShare * 100)}% населения города
+                    <span>Доля из датасета</span>
                   </div>
                   <div className="metrics">
                     {categories.map((c) => {
@@ -470,6 +493,7 @@ export default function App() {
                       );
                     })}
                   </div>
+                  <IndicatorDetails district={active} />
                   <div className="district-insight">
                     <Lightbulb size={20} />
                     <div>
@@ -491,7 +515,7 @@ export default function App() {
               </div>
               <div className="section-heading">
                 <div>
-                  <h2>Один город. Четыре характера.</h2>
+                  <h2>Один город. Пять районов.</h2>
                   <p>Выберите район и узнайте, что нужно его жителям.</p>
                 </div>
                 <span className="muted">Синтетический датасет</span>
@@ -508,12 +532,14 @@ export default function App() {
                         <Building2 size={19} />
                       </span>
                       <span className="district-score">
-                        {average(d.metrics)}
+                        {round2(districtScore(d))}
                         <small>/100</small>
                       </span>
                     </div>
                     <h3>{districtNames[d.id]}</h3>
-                    <p>{Math.round(d.population / 1000)} тыс. жителей</p>
+                    <p>
+                      {Math.round(d.populationShare * 100)}% населения города
+                    </p>
                     <div className="mini-bars">
                       {categories.map((c) => (
                         <span
@@ -539,10 +565,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2>Хороший город начинается с решения.</h2>
-                  <p>
-                    Распределите бюджет между пятью направлениями и оцените
-                    результат.
-                  </p>
+                  <p>Выберите пять совместимых мер и оцените результат.</p>
                 </div>
                 <button
                   className="button primary"
@@ -555,198 +578,34 @@ export default function App() {
             </>
           )}
           {page === "decisions" && (
-            <div className="decisions-layout">
-              <section className="panel decision-panel">
-                <div className="panel-heading">
-                  <div>
-                    <h2>Приоритеты развития</h2>
-                    <p>Одно решение на каждое направление</p>
-                  </div>
-                  <span className="chip">{selection.length} / 5</span>
-                </div>
-                <div
-                  className="category-tabs"
-                  role="tablist"
-                  aria-label="Направления"
-                >
-                  {categories.map((c) => {
-                    const Icon = icons[c.key];
-                    return (
-                      <button
-                        key={c.key}
-                        role="tab"
-                        aria-selected={category === c.key}
-                        className={category === c.key ? "active" : ""}
-                        onClick={() => setCategory(c.key)}
-                      >
-                        <Icon size={19} />
-                        <span>{c.short}</span>
-                        {selection.some((i) => i.category === c.key) && (
-                          <Check size={12} className="tab-check" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="decision-intro">
-                  <span className="eyebrow">
-                    НАПРАВЛЕНИЕ{" "}
-                    {categories.findIndex((c) => c.key === category) + 1} ИЗ 5
-                  </span>
-                  <h2>{categories.find((c) => c.key === category)?.label}</h2>
-                  <p>
-                    Основной эффект получит указанный район. Остальные районы
-                    также почувствуют улучшение.
-                  </p>
-                </div>
-                <div className="initiative-list">
-                  {initiatives
-                    .filter((i) => i.category === category)
-                    .map((item) => {
-                      const selected = selection.some((i) => i.id === item.id);
-                      const available =
-                        cityBudget.total -
-                        spent +
-                        (selection.find((i) => i.category === category)?.cost ||
-                          0);
-                      const disabled = item.cost > available;
-                      return (
-                        <button
-                          className={`initiative ${selected ? "selected" : ""}`}
-                          key={item.id}
-                          onClick={() => choose(item)}
-                          disabled={disabled || busy}
-                          aria-pressed={selected}
-                        >
-                          <span className="radio">
-                            {selected && <Check size={13} />}
-                          </span>
-                          <span className="initiative-body">
-                            <span className="initiative-title">
-                              {item.title}
-                            </span>
-                            <span className="initiative-description">
-                              {item.description}
-                            </span>
-                            <span className="initiative-tags">
-                              <span>
-                                <MapPin size={12} />
-                                {districtNames[item.district]}
-                              </span>
-                              <span className="impact">
-                                +{item.gain} к показателю
-                              </span>
-                            </span>
-                          </span>
-                          <span className="initiative-price">
-                            {money(item.cost)}
-                            <small>млн ₸</small>
-                            {disabled && <em>Не хватает бюджета</em>}
-                          </span>
-                        </button>
-                      );
-                    })}
-                </div>
-                <div className="decision-footer">
-                  <span>
-                    <ShieldCheck size={16} />
-                    Бюджет защищён от перерасхода
-                  </span>
+            <div className="dataset-decisions">
+              <DecisionPanel
+                selection={selection}
+                onChoose={choose}
+                activeDistrict={activeDistrict}
+                onSelect={setActiveDistrict}
+                busy={busy}
+                onAnalyze={analyze}
+              />
+              {error && (
+                <div className="error" role="alert">
+                  {error}
                   <button
                     className="button secondary"
-                    onClick={() =>
-                      setCategory(
-                        categories[
-                          (categories.findIndex((c) => c.key === category) +
-                            1) %
-                            5
-                        ].key,
-                      )
-                    }
+                    disabled={!complete}
+                    onClick={() => {
+                      setResult(localAnalysis(selection));
+                      setPage("result");
+                    }}
                   >
-                    Следующее направление
-                    <ArrowRight size={15} />
+                    Локальное объяснение
                   </button>
                 </div>
-              </section>
-              <aside className="scenario-panel panel">
-                <div className="panel-heading">
-                  <h2>Ваш сценарий</h2>
-                  <span className="small-icon">
-                    <Flag size={17} />
-                  </span>
-                </div>
-                <div className="scenario-list">
-                  {categories.map((c) => {
-                    const item = selection.find((i) => i.category === c.key);
-                    const Icon = icons[c.key];
-                    return (
-                      <button key={c.key} onClick={() => setCategory(c.key)}>
-                        <span
-                          className={`scenario-check ${item ? "checked" : ""}`}
-                        >
-                          {item ? <Check size={15} /> : <Icon size={15} />}
-                        </span>
-                        <span>
-                          <small>{c.short}</small>
-                          <strong>
-                            {item ? item.title : "Решение не выбрано"}
-                          </strong>
-                        </span>
-                        {item && (
-                          <b>
-                            {money(item.cost)}
-                            <small>млн ₸</small>
-                          </b>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="scenario-total">
-                  <span>Общие инвестиции</span>
-                  <strong>
-                    {money(spent)} <small>млн ₸</small>
-                  </strong>
-                </div>
-                <div className="analysis-hint">
-                  <ChartNoAxesCombined size={19} />
-                  <p>
-                    {import.meta.env.VITE_ANALYSIS_URL
-                      ? "AI оценит сильные стороны и компромиссы вашего сценария."
-                      : "Демо-режим: прозрачный локальный расчёт. AI-сервис пока не подключён."}
-                  </p>
-                </div>
-                <button
-                  className="button primary full"
-                  disabled={selection.length !== 5 || busy}
-                  onClick={analyze}
-                >
-                  <ChartNoAxesCombined size={17} />
-                  {busy ? "Анализируем сценарий…" : "Оценить сценарий"}
-                  <ArrowRight size={16} />
-                </button>
-                <p className="analysis-caption">
-                  {selection.length < 5
-                    ? `Осталось выбрать решений: ${5 - selection.length}`
-                    : "Можно вернуться и изменить любой выбор"}
-                </p>
-                {error && (
-                  <div className="error" role="alert">
-                    {error}
-                    <button
-                      className="button secondary"
-                      onClick={() => {
-                        setResult(localAnalysis(selection));
-                        setPage("result");
-                      }}
-                    >
-                      Локальный расчёт
-                    </button>
-                  </div>
-                )}
-              </aside>
+              )}
             </div>
+          )}
+          {page === "result" && result && (
+            <ScoreDetails selection={selection} />
           )}
           {page === "result" &&
             (result ? (
@@ -755,8 +614,8 @@ export default function App() {
                   <span className="chip">
                     <ChartNoAxesCombined size={14} />
                     {result.source === "ai"
-                      ? "AI-анализ завершён"
-                      : "Локальная модель · демо"}
+                      ? "Расчёт модели + объяснение AI"
+                      : "Расчёт по датасету"}
                   </span>
                   <h2>
                     Astana Quality
@@ -774,7 +633,7 @@ export default function App() {
                   </div>
                   <span className="result-growth">
                     {result.score >= baseScore ? "+" : ""}
-                    {(result.score - baseScore).toFixed(1)} к исходной оценке{" "}
+                    {(result.score - baseScore).toFixed(2)} к исходной оценке{" "}
                     {baseScore}
                   </span>
                   <p>{result.summary}</p>
@@ -891,22 +750,26 @@ export default function App() {
             </span>
             <h2>Пять решений для лучшего города</h2>
             <p>
-              Вы — аким условной Астаны. У вас 500 млн ₸ и пять направлений
+              Вы — аким условной Астаны. У вас 100 у. е. и пять направлений
               развития.
             </p>
             <ol>
-              <li>Изучите исходные показатели четырёх районов.</li>
-              <li>Выберите одну инициативу в каждом направлении.</li>
+              <li>Изучите 10 показателей пяти районов.</li>
               <li>
-                Следите за бюджетом. Инициативу можно заменить или отменить.
+                Выберите ровно 5 разных мер, не более двух одного направления.
+              </li>
+              <li>
+                Укажите район для районной меры. Городские меры действуют во
+                всех районах. Следите за бюджетом и несовместимостями.
               </li>
               <li>Оцените сценарий и сравните его с исходным городом.</li>
             </ol>
             <div className="notice">
-              Все данные синтетические. Индекс модели — среднее пяти
-              показателей, взвешенное по населению районов. Основной район
-              получает полный эффект инициативы, остальные — 35% с округлением.
-              Показатели ограничены 100 баллами.
+              Горизонт — 8 кварталов. Эффект × (8 − лаг) / 8, затем
+              фиксированные синергии и ограничение показателей 0–100. Score =
+              0,7 × средняя оценка районов по долям населения + 0,3 × оценка
+              слабейшего района − число показателей ниже 40. AI объясняет
+              готовый расчёт.
             </div>
             <button className="button primary" onClick={() => setHelp(false)}>
               Всё понятно
@@ -918,7 +781,7 @@ export default function App() {
             <h2>Начать новый сценарий?</h2>
             <p>
               Текущие решения и результат будут сброшены. Бюджет снова составит
-              500 млн ₸.
+              100 у. е..
             </p>
             <div className="modal-actions">
               <button
@@ -933,7 +796,6 @@ export default function App() {
                   commitSelection([]);
                   setResult(null);
                   setError("");
-                  setCategory("transport");
                   setPage("overview");
                   setResetOpen(false);
                 }}
