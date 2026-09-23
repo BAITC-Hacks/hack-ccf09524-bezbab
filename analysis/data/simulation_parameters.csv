@@ -1,0 +1,4 @@
+parameter,value,unit
+simulation_horizon_quarters,8,кварталов
+simulation_horizon_years,2,условных года
+realized_effect_formula,"(8 - lag_quarters) / 8",доля полного эффекта
